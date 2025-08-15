@@ -28,29 +28,61 @@ open Random
 
 /-- Monad to generate random examples to test properties with.
 It has a `Nat` parameter so that the caller can decide on the
-size of the examples. -/
-abbrev Gen (α : Type u) := ReaderT (ULift Nat) Rand α
+size of the examples. It allows failure to generate via the `OptionT` transformer -/
+abbrev Gen (α : Type u) := RandGT StdGen (ReaderT (ULift Nat) (OptionT Id)) α
+
+instance instMonadLiftGen [MonadLift m (ReaderT (ULift Nat) (OptionT Id))] : MonadLift (RandGT StdGen m) Gen where
+  monadLift := λ m ↦ liftM ∘ (m.run)
+
+#print Random
+#print RandGT
+
+-- We get the wrong instance by default
+instance instMonadReaderGen : MonadReader (ULift Nat) Gen where
+  read := λ g ↦
+  do
+    let size ← read
+    return ⟨size, g⟩
+
+instance instMonadErrorGen : MonadExcept Unit Gen := by infer_instance
+
+#print instMonadErrorGen
+
+#print StdGen
+
+-- Ooof
+#eval (@throw Unit Gen _ Bool ()).run ⟨1, 2⟩ |> ReaderT.run <| ⟨3⟩
 
 namespace Gen
 
-@[inline]
-def up (x : Gen.{u} α) : Gen (ULift.{v} α) := do
-  let size ← read
-  Rand.up <| x.run ⟨size.down⟩
+#print ULift
+#print OptionT
 
 @[inline]
-def down (x : Gen (ULift.{v} α)) : Gen α := do
-  let size ← read
-  Rand.down <| x.run ⟨size.down⟩
+def up (x : Gen.{u} α) : Gen (ULift.{v} α) :=
+  RandT.up
+    (λ m size ↦
+      match m.run ⟨size.down⟩ with
+      | .none => .none
+      | .some a => .some ⟨a⟩) x
+
+
+@[inline]
+def down (x : Gen (ULift.{v} α)) : Gen α :=
+  RandT.down (λ m size ↦
+      match m.run ⟨size.down⟩ with
+      | .none => .none
+      | .some a => .some a.down) x
 
 /-- Lift `Random.random` to the `Gen` monad. -/
 def chooseAny (α : Type u) [Random Id α] : Gen α :=
-  fun _ => rand α
+  rand (g := StdGen) α (m := Id) |> liftM
 
 /-- Lift `BoundedRandom.randomR` to the `Gen` monad. -/
 def choose (α : Type u) [LE α] [BoundedRandom Id α] (lo hi : α) (h : lo ≤ hi) :
     Gen {a // lo ≤ a ∧ a ≤ hi} :=
-  fun _ => randBound α lo hi h
+  randBound (g := StdGen) α (m := Id) lo hi h |> liftM
+
 
 /-- Generate a `Nat` example between `lo` and `hi` (exclusively). -/
 def chooseNatLt (lo hi : Nat) (h : lo < hi) : Gen {a // lo ≤ a ∧ a < hi} := do
