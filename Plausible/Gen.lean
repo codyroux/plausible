@@ -29,7 +29,7 @@ open Random
 /-- Monad to generate random examples to test properties with.
 It has a `Nat` parameter so that the caller can decide on the
 size of the examples. It allows failure to generate via the `OptionT` transformer -/
-abbrev Gen (α : Type u) := RandGT StdGen (ReaderT (ULift Nat) (OptionT Id)) α
+abbrev Gen (α : Type u) := RandT (ReaderT (ULift Nat) (OptionT Id)) α
 
 instance instMonadLiftGen [MonadLift m (ReaderT (ULift Nat) (OptionT Id))] : MonadLift (RandGT StdGen m) Gen where
   monadLift := λ m ↦ liftM ∘ (m.run)
@@ -148,8 +148,17 @@ def prodOf {α : Type u} {β : Type v} (x : Gen α) (y : Gen β) : Gen (α × β
 end Gen
 
 /-- Execute a `Gen` inside the `IO` monad using `size` as the example size -/
-def Gen.run {α : Type} (x : Gen α) (size : Nat) : BaseIO α :=
-  letI : MonadLift Id BaseIO := ⟨fun f => pure <| Id.run f⟩
-  runRand (ReaderT.run x ⟨size⟩:)
+def Gen.run {α : Type} (x : Gen α) (size : Nat) : IO α :=
+  let errOfOpt {α} : OptionT Id α → IO α := λ m ↦ match m with | .some a => pure a | .none => throw <| IO.userError "generation failure"
+  letI : MonadLift (ReaderT (ULift Nat) (OptionT Id)) IO := ⟨fun m => errOfOpt <| ReaderT.run m ⟨size⟩⟩
+  runRand x
+
+/-- Execute a `Gen` until it actually produces an output. May diverge for bad generators! -/
+partial def Gen.runUntil {α : Type} (x : Gen α) (size : Nat) : IO α :=
+  try
+    Gen.run x size
+  catch
+    | .userError "generation failure" => Gen.runUntil x size
+    | e => throw e
 
 end Plausible
