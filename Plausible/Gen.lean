@@ -147,18 +147,34 @@ def prodOf {α : Type u} {β : Type v} (x : Gen α) (y : Gen β) : Gen (α × β
 
 end Gen
 
+def Gen.genFailure {α : Type} : IO α := throw <| IO.userError "generation failure"
+
+#check List.map
+
+#print runRand
+
 /-- Execute a `Gen` inside the `IO` monad using `size` as the example size -/
 def Gen.run {α : Type} (x : Gen α) (size : Nat) : IO α :=
-  let errOfOpt {α} : OptionT Id α → IO α := λ m ↦ match m with | .some a => pure a | .none => throw <| IO.userError "generation failure"
+  let errOfOpt {α} : OptionT Id α → IO α := λ m ↦
+    match m with
+    | .some a => pure a
+    | .none => genFailure
   letI : MonadLift (ReaderT (ULift Nat) (OptionT Id)) IO := ⟨fun m => errOfOpt <| ReaderT.run m ⟨size⟩⟩
   runRand x
 
 /-- Execute a `Gen` until it actually produces an output. May diverge for bad generators! -/
-partial def Gen.runUntil {α : Type} (x : Gen α) (size : Nat) : IO α :=
+partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen α) (size : Nat) : IO α :=
+  match attempts with
+  | .some 0 => genFailure
+  | _ =>
   try
     Gen.run x size
   catch
-    | .userError "generation failure" => Gen.runUntil x size
+    | .userError "generation failure" =>
+      Gen.runUntil (decr attempts) x size
     | e => throw e
+  where decr : Option Nat → Option Nat
+  | .some n => .some (n-1)
+  | .none => .none
 
 end Plausible
