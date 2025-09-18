@@ -4,6 +4,7 @@ import Plausible.Chamelean.Utils
 import Plausible.Chamelean.Schedules
 import Plausible.Chamelean.UnificationMonad
 import Plausible.Chamelean.MakeConstrainedProducerInstance
+import Plausible.Chamelean.LazyList
 
 open Lean Meta
 
@@ -219,6 +220,181 @@ def normalizeSchedule (steps : List ScheduleStep) : List ScheduleStep :=
       -- Comparison function on blocks of `ScheduleSteps`
       compareBlocks b1 b2 := Ordering.isLE $ Ord.compare b1 b2
 
+def subsets {α} (as : List α) : LazyList (List α × List α) :=
+  match as with
+  | [] => pure ([],[])
+  | a :: as' => do
+    let (subset,comp) <- subsets as'
+    .lcons (subset,a :: comp) ⟨ λ _ => .lcons (a :: subset, comp) ⟨λ _ => .lnil⟩⟩
+
+def subsetsSuchThat {α} (p : α -> Bool) (as : List α) : LazyList (List α × List α) :=
+  match as with
+  | [] => pure ([],[])
+  | a :: as' => do
+    let (subset,comp) <- subsetsSuchThat p as'
+    if p a then
+    .lcons (subset,a :: comp) ⟨ λ _ => .lcons (a :: subset, comp) ⟨λ _ => .lnil⟩⟩
+    else
+    .lcons (subset,a::comp) ⟨ λ _ => .lnil ⟩
+
+def nonemptySubsetsSuchThat {α} (p : α -> Bool) (as : List α) :=
+  LazyList.filter (λ (l,_) => not l.isEmpty) (subsetsSuchThat p as)
+
+#eval (nonemptySubsetsSuchThat (fun x => x % 2 == 0) [1,2,3,4,5,6]).take 15
+
+def select {α} (as : List α) : LazyList (α × List α) :=
+  match as with
+  | [] => .lnil
+  | a :: as' =>
+    .lcons (a, as') ⟨λ _ => LazyList.mapLazyList (λ (x,as'') => (x, a::as'')) (select as')⟩
+
+theorem select_smaller : ∀ α (l : List α) a l', (a,l') ∈ select l -> l'.length < l.length := by
+  intros α l a l' Hmem
+  generalize h : (select l) = selections at Hmem
+  induction Hmem
+  case InLHead tl =>
+    cases l with
+    | nil => simp [select] at h
+    | cons head tail =>
+      simp [select] at h
+      simp at *
+      rcases h with ⟨ left, right ⟩
+      rcases left with ⟨ left, right ⟩
+      subst tail
+      exact Nat.lt_add_one l'.length
+  case InLNext selection rest h1 mem ih =>
+    cases l with
+    | nil => simp [select] at h
+    | cons head tail =>
+      simp [select] at *
+      sorry
+
+
+
+
+
+
+
+partial def permutations {α} (as : List α) : LazyList (List α) :=
+  match as with
+  | [] => pure []
+  | as => do
+    let ⟨ x,as' ⟩  <- select as
+    LazyList.mapLazyList (λ l => x :: l) (permutations as')
+
+inductive PreScheduleStep α v where
+| Checks (hyps : List α)
+| Produce (out : List v) (hyp : α)
+| InstVars (var : List v)
+deriving Repr
+
+instance [Repr α] [Repr v] : Repr (List (PreScheduleStep α v)) where
+  reprPrec steps _ :=
+    let lines := steps.map fun step =>
+      match step with
+      | .InstVars vars => s!"{repr vars} <- arbitrary"
+      | .Produce out hyp => s!"{repr out} <- {repr hyp}"
+      | .Checks hyps => s!"check {repr hyps}"
+    "do\n  " ++ String.intercalate "\n  " lines
+
+
+
+def valid_variable {α v} [BEq v] (env : List v) (hyp : α) (var : v) : Bool :=
+  not (List.contains env var)
+def needs_checking {α v} [BEq v] (env : List v) (a_vars : α × List v) : Bool :=
+  a_vars.snd.all (List.contains env)
+def prune_empties (schd : List (PreScheduleStep α v)) : List (PreScheduleStep α v) :=
+  schd.foldr aux []
+  where
+    aux pss l :=
+      match pss with
+      | .Checks [] => l
+      | .InstVars [] => l
+      | _ => pss :: l
+
+partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × List v)) (env : List v)
+  : LazyList (List (PreScheduleStep α v)) :=
+  match hyps with
+  | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
+  | _ => do
+    let ⟨ (hyp, vs),hyps' ⟩  <- select hyps
+    let potential_outputs := List.filter (not ∘ List.contains env) vs
+    let (out,bound) <- nonemptySubsetsSuchThat (valid_variable env hyp) potential_outputs
+    let env' := bound ++ env
+    let (prechecks,to_be_satisfied) := List.partition (needs_checking env') hyps'
+    let env'' := out ++ env'
+    let (postchecks,to_be_satisfied') := List.partition (needs_checking env'') to_be_satisfied
+
+
+    LazyList.mapLazyList (λ l => prune_empties [.InstVars bound
+                              , .Checks (Prod.fst <$> prechecks)
+                              , .Produce out hyp
+                              , .Checks (Prod.fst <$> postchecks)
+                              ]
+                              ++ l) (enum_schedules vars to_be_satisfied' env'')
+
+#eval (permutations [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]).take 3
+#eval (enum_schedules [1,2,3,4] [("A",[1,2,3]), ("B",[3])] []).take 15
+
+-- Simple test with 2 hypotheses
+#eval (enum_schedules [1,2,3] [("A",[1,2]), ("B",[2,3])] []).take 3
+
+-- Test with overlapping variables
+#eval (enum_schedules [1,2,3,4,5] [("H1",[1,2,3]), ("H2",[3,4]), ("H3",[4,5])] []).take 5
+
+-- Test with some variables already bound
+#eval (enum_schedules [1,2,3] [("A",[1,2]), ("B",[2,3])] [1])
+
+-- Larger example to test scalability
+#eval (enum_schedules [1,2,3,4] [("P",[1,2]), ("Q",[2,3]), ("R",[3,4]), ("S",[1,4])] []).take 10
+
+-- Lots of variables (10 variables in one hypothesis)
+#eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("BigHyp",[1,2,3,4,5,6,7,8,9,10])] []).take 5
+
+-- Lots of hypotheses (10 hypotheses with few variables each)
+#eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("H1",[1]), ("H2",[2]), ("H3",[3]), ("H4",[4]), ("H5",[5]),
+                       ("H6",[6]), ("H7",[7]), ("H8",[8]), ("H9",[9]), ("H10",[10])] []).take 3
+
+-- Both: many hypotheses with many variables each
+#eval (enum_schedules (List.range 14) [("A",[1,2,3,4,5]), ("B",[3,4,5,6,7]), ("C",[5,6,7,8,9]),
+                       ("D",[7,8,9,10,11,3,1,2]), ("E",[9,10,11,12,13])] []).take 100
+
+#print ScheduleEnv
+
+def possible_schedules' : ScheduleM (LazyList (List ScheduleStep)) := do
+  let env <- read
+  let hyp_perms := permutations env.sortedHypotheses
+  /- For each permutation, for each of its hypotheses, select which of its
+  unbound variables should be instantiated to satisfy it.
+  Not all unbound variables are able to be instantiated by a hypothesis,
+  so we must filter out those unbound mentioned in the hypothesis which
+  are arguments to a function (1) and those which are under a constructor
+  that contains a bound or invalid unbound variable (2) and those that
+  appear nonlinearly (as they would require an unlikely equality check)(3).
+  Here is an encompassing example:
+  `H (C a (f b)) c (C₃ c) d (C₃ (C₂ e) C₄)`
+  We can't instantiate `b` because it is under a function (1),
+   `a` because it is under a constructor with an invalid variable `b` (2),
+   `c` because it appears nonlinearly
+  We *can* instantiate `d` and `e` because they satisfy all three conditions
+  Note that despite e being stored under several constructors, there are no
+  bound or invalid variables mixed in, so we can generate H's 5th argument
+  and pattern match the result against `(C₃ (C₂ x) C₄)` and if it matches,
+  `e` to the value `x`.
+
+  The remainder of its unbound variables should be instantiated according
+  to their type unconstrained by a hypothesis. These unconstrained instantiations
+  should happen before the constrained instantiation. For each `2^|unbound ∩ valid|`
+  choice, we prepend the unconstrained instantiations behind the constrained one
+  and lazily cons that version of the schedule to our list.
+
+  Finally, we fold through the list, tracking the set of variables bound, as soon
+  as a constraint has had all its variables bound, a check for it
+  should be inserted at that point in the schedule. Finally, return
+  the schedules. -/
+  return (.lnil)
+
+
 /-- Depth-first enumeration of all possible schedules.
 
     The list of possible schedules boils down to taking a permutation of list of hypotheses -- what this function
@@ -265,7 +441,7 @@ def normalizeSchedule (steps : List ScheduleStep) : List ScheduleStep :=
 partial def dfs (boundVars : List Name) (remainingVars : List Name) (checkedHypotheses : List Nat) (scheduleSoFar : List ScheduleStep) : ScheduleM (List (List ScheduleStep)) := do
   match remainingVars with
   | [] =>
-    return [List.reverse scheduleSoFar]
+    return (pure (List.reverse scheduleSoFar))
   | _ => do
     -- Obtain environment variables via the underlying reader monad's `read` functino
     let env ← read
