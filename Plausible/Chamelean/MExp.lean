@@ -163,6 +163,7 @@ partial def constructorExprToMExp (expr : ConstructorExpr) : MExp :=
   match expr with
   | .Unknown u => .MId u
   | .Ctor c args => .MCtr c (constructorExprToMExp <$> args)
+  | .FuncApp f args => .MApp (.MId f) (constructorExprToMExp <$> args)
 
 
 /-- `MExp` representation of a recursive function call,

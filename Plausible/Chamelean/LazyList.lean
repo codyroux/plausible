@@ -17,7 +17,6 @@ inductive InLazyList {α : Type u} (a : α) : LazyList α -> Prop where
 
 #eval 1 :: 2 :: 3 :: []
 
-
 abbrev InLazyList' {α} l (a : α) := InLazyList a l
 
 instance {α}: Membership α (LazyList α) :=
@@ -39,13 +38,18 @@ instance [Repr α] : Repr (LazyList α) where
   reprPrec l _ := repr l.toList
 
 /-- Retrieves a prefix of the `LazyList` (only the thunks in the prefix are evaluated) -/
-def take (n : Nat) (l : LazyList α) : LazyList α :=
+def take (n : Nat) (l : LazyList α) : List α :=
   match n with
-  | .zero => lnil
+  | .zero => []
   | .succ n' =>
     match l with
-    | .lnil => lnil
-    | .lcons x xs => .lcons x (take n' xs.get)
+    | .lnil => []
+    | .lcons x xs => x :: (take n' xs.get)
+
+def head (l : LazyList α) : Option α :=
+  match l with
+  | lnil => none
+  | lcons x _ => some x
 
 /-- Appends two `LazyLists` together -/
 def append (xs : LazyList α) (ys : LazyList α) : LazyList α :=
@@ -64,6 +68,37 @@ def mapLazyList (f : α → β) (l : LazyList α) : LazyList β :=
   match l with
   | .lnil => .lnil
   | .lcons x xs => .lcons (f x) ⟨fun _ => mapLazyList f xs.get⟩
+
+def strong_induction {P : LazyList α → Prop}
+  (h_nil : P lnil)
+  (h_cons : ∀ x xs, P xs.get → P (lcons x xs)) :
+  ∀ l, P l :=
+  let rec aux l :=
+    match l with
+    | lnil => h_nil
+    | lcons x xs => h_cons x xs (aux xs.get)
+  aux
+
+theorem mapInLazyList : ∀ α β (l : LazyList α) (f : α -> β) a b,
+  InLazyList b (mapLazyList f l) -> Function.Injective f -> f a = b -> InLazyList a l := by
+  intros α β l f a b Hinmap Hinj Hfa_eq_b
+  induction l using strong_induction
+  case h_nil =>
+    simp [mapLazyList] at Hinmap
+    cases Hinmap
+  case h_cons x xs IHxs =>
+    simp [mapLazyList] at Hinmap
+    cases Hinmap
+    case InLHead =>
+      rw [Hinj Hfa_eq_b] at *
+      constructor
+    case InLNext b_fx_neq tl =>
+      rw [<- Hfa_eq_b] at b_fx_neq
+      have h : a ≠ x := by exact fun a_1 => b_fx_neq (congrArg f a_1)
+      constructor
+      . exact h
+      . exact IHxs tl
+
 
 /-- `Functor` instance for `LazyList` -/
 instance : Functor LazyList where

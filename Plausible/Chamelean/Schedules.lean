@@ -126,16 +126,17 @@ partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
     if env.isConstructor name then
       return ConstructorExpr.Ctor name []
     else
-      return ConstructorExpr.Unknown name
+      return ConstructorExpr.FuncApp name []
   | .app f arg => do
     let fExpr ← exprToConstructorExpr f
     let argExpr ← exprToConstructorExpr arg
     match fExpr with
     | ConstructorExpr.Ctor name args =>
       return ConstructorExpr.Ctor name (args ++ [argExpr])
+    | ConstructorExpr.FuncApp name args =>
+      return ConstructorExpr.FuncApp name (args ++ [argExpr])
     | ConstructorExpr.Unknown name =>
-      -- Treat as constructor application if we encounter an application
-      return ConstructorExpr.Ctor name [argExpr]
+      throwError m!"exprToConstructorExpr: We do not support higher order application of {name} in Expr {e}"
   | _ =>
     -- For other expression types (literals, lambdas, etc.), generate a placeholder name
     return ConstructorExpr.Unknown `unknown

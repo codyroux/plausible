@@ -452,19 +452,20 @@ def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName 
       -- in the list of universally-quantified variables
       let updatedForAllVars := forAllVars ++ freshNamesAndTypes
       -- Compute all possible checker schedules for this constructor
-      let possibleSchedules ← possibleSchedules
+      let possibleSchedules := possibleSchedules
         (vars := updatedForAllVars)
         (hypotheses := hypothesisExprs.toList)
         deriveSort
         recCall
         fixedVars
 
+      throwError m!"{possibleSchedules.toList.length}"
       -- A *naive* schedule is the first schedule contained in `possibleSchedules`
-      let originalNaiveSchedule ← Option.getDM (possibleSchedules.head?) (throwError m!"Unable to compute any possible schedules")
+      let originalNaiveScheduleM ← Option.getDM (possibleSchedules.head) (throwError m!"Unable to compute any possible schedules")
 
       -- Update the naive schedule with the result of unification
-      let updatedNaiveSchedule ← updateScheduleSteps originalNaiveSchedule
-
+      let updatedNaiveScheduleUnify ← updateScheduleSteps <$> originalNaiveScheduleM
+      let updatedNaiveSchedule <- updatedNaiveScheduleUnify
       let finalState ← get
 
       -- Takes the `patterns` and `equalities` fields from `UnifyState` (created after
