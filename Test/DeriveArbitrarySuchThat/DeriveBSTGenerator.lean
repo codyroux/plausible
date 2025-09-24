@@ -13,7 +13,7 @@ open ArbitrarySizedSuchThat OptionTGen
 
 set_option guard_msgs.diff true
 
-/--
+/-
 info: Try this generator: instance : ArbitrarySizedSuchThat Nat (fun x_1 => Between lo_1 x_1 hi_1) where
   arbitrarySizedST :=
     let rec aux_arb (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : OptionT Plausible.Gen Nat :=
@@ -44,11 +44,11 @@ info: Try this generator: instance : ArbitrarySizedSuchThat Nat (fun x_1 => Betw
               | _ => OptionT.fail)]
     fun size => aux_arb size size lo_1 hi_1
 -/
-#guard_msgs(info, drop warning) in
+-- #guard_msgs(info, drop warning) in
 #derive_generator (fun (x : Nat) => Between lo x hi)
 
-
-/--
+deriving instance Arbitrary for BinaryTree
+/-
 info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 => BST lo_1 hi_1 t_1) where
   arbitrarySizedST :=
     let rec aux_arb (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : OptionT Plausible.Gen BinaryTree :=
@@ -66,7 +66,31 @@ info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 
                   return BinaryTree.Node x l r)]
     fun size => aux_arb size size lo_1 hi_1
 -/
-#guard_msgs(info, drop warning) in
+-- #guard_msgs(info, drop warning) in
+#set_option diagnostics true
+instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 => BST lo_1 hi_1 t_1) where
+  arbitrarySizedST :=
+    let rec aux_arb (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : OptionT Plausible.Gen BinaryTree :=
+      (match size with
+      | Nat.zero => OptionTGen.backtrack [(1, return BinaryTree.Leaf)]
+      | Nat.succ size' =>
+        OptionTGen.backtrack
+          [(1, return BinaryTree.Leaf),
+            (Nat.succ size', do
+              let x ← @Plausible.Arbitrary.arbitrary (Option Nat) (by exact instArbitraryOption);
+              match DecOpt.decOpt (Between lo_1 x hi_1) initSize with
+                | Option.some Bool.true => do
+                  let l ← @Plausible.Arbitrary.arbitrary (Option BinaryTree) _;
+                  match DecOpt.decOpt (BST lo_1 x l) initSize with
+                    | Option.some Bool.true => do
+                      let r ← Plausible.Arbitrary.arbitrary;
+                      match DecOpt.decOpt (BST x hi_1 r) initSize with
+                        | Option.some Bool.true => return BinaryTree.Node x l r
+                        | _ => OptionT.fail
+                    | _ => OptionT.fail
+                | _ => OptionT.fail)])
+    fun size => aux_arb size size lo_1 hi_1
+
 #derive_generator (fun (t : BinaryTree) => BST lo hi t)
 
 

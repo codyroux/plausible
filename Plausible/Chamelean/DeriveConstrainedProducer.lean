@@ -459,13 +459,26 @@ def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName 
         recCall
         fixedVars
 
-      throwError m!"{possibleSchedules.toList.length}"
-      -- A *naive* schedule is the first schedule contained in `possibleSchedules`
-      let originalNaiveScheduleM ← Option.getDM (possibleSchedules.head) (throwError m!"Unable to compute any possible schedules")
+      match possibleSchedules with
+      | .lnil => throwError m!"Unable to compute any possible schedules"
+      | .lcons fstSchdM rest =>
 
+      let fstSchd <- fstSchdM
+
+      let smallestOfFirst100 <- List.foldlM (fun (shortest,minLen) schdM => do
+        let schd <- schdM
+        let len := schd.length
+        if len < minLen then return (schd,len)
+                        else return (shortest, minLen)) (fstSchd, fstSchd.length)
+                    $ LazyList.take 100 rest.get
+
+
+
+      -- A *naive* schedule is the first schedule contained in `possibleSchedules`
+      let originalNaiveScheduleM := smallestOfFirst100.fst
       -- Update the naive schedule with the result of unification
-      let updatedNaiveScheduleUnify ← updateScheduleSteps <$> originalNaiveScheduleM
-      let updatedNaiveSchedule <- updatedNaiveScheduleUnify
+      let updatedNaiveScheduleUnify ← updateScheduleSteps originalNaiveScheduleM
+      let updatedNaiveSchedule := updatedNaiveScheduleUnify
       let finalState ← get
 
       -- Takes the `patterns` and `equalities` fields from `UnifyState` (created after

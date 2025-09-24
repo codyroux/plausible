@@ -7,7 +7,7 @@ open DecOpt
 
 set_option guard_msgs.diff true
 
-/--
+/-
 info: Try this checker: instance : DecOpt (balancedTree n_1 t_1) where
   decOpt :=
     let rec aux_dec (initSize : Nat) (size : Nat) (n_1 : Nat) (t_1 : BinaryTree) : Option Bool :=
@@ -53,5 +53,5 @@ info: Try this checker: instance : DecOpt (balancedTree n_1 t_1) where
             | _ => Option.some Bool.false]
     fun size => aux_dec size size n_1 t_1
 -/
-#guard_msgs(info, drop warning) in
+-- #guard_msgs(info, drop warning) in
 #derive_checker (balancedTree n t)

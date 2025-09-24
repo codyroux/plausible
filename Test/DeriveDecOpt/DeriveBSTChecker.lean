@@ -6,7 +6,7 @@ open DecOpt
 
 set_option guard_msgs.diff true
 
-/--
+/-
 info: Try this checker: instance : DecOpt (Between lo_1 x_1 hi_1) where
   decOpt :=
     let rec aux_dec (initSize : Nat) (size : Nat) (lo_1 : Nat) (x_1 : Nat) (hi_1 : Nat) : Option Bool :=
@@ -40,10 +40,10 @@ info: Try this checker: instance : DecOpt (Between lo_1 x_1 hi_1) where
             | _ => Option.some Bool.false]
     fun size => aux_dec size size lo_1 x_1 hi_1
 -/
-#guard_msgs(info, drop warning) in
+-- #guard_msgs(info, drop warning) in
 #derive_checker (Between lo x hi)
 
-/--
+/-
 info: Try this checker: instance : DecOpt (BST lo_1 hi_1 t_1) where
   decOpt :=
     let rec aux_dec (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) (t_1 : BinaryTree) : Option Bool :=
@@ -69,5 +69,5 @@ info: Try this checker: instance : DecOpt (BST lo_1 hi_1 t_1) where
             | _ => Option.some Bool.false]
     fun size => aux_dec size size lo_1 hi_1 t_1
 -/
-#guard_msgs(info, drop warning) in
+-- #guard_msgs(info, drop warning) in
 #derive_checker (BST lo hi t)

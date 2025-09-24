@@ -19,7 +19,7 @@ inductive balancedTree : Nat → BinaryTree → Prop where
     balancedTree n l → balancedTree n r →
     balancedTree (.succ n) (BinaryTree.Node x l r)
 
-/--
+/-
 info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 => balancedTree n_1 t_1) where
   arbitrarySizedST :=
     let rec aux_arb (initSize : Nat) (size : Nat) (n_1 : Nat) : OptionT Plausible.Gen BinaryTree :=
@@ -56,5 +56,6 @@ info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 
               | _ => OptionT.fail)]
     fun size => aux_arb size size n_1
 -/
-#guard_msgs(info, drop warning) in
+
+
 #derive_generator (fun (t : BinaryTree) => balancedTree n t)

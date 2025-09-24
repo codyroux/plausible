@@ -247,7 +247,7 @@ def nonemptySubsetsSuchThat {α} (p : α -> Bool) (as : List α) :=
 def nonemptySubsets {α} (as : List α) :=
   LazyList.filter (λ (l,_) => not l.isEmpty) (subsets as)
 
-#eval (nonemptySubsetsSuchThat (fun x => x % 2 == 0) [1,2,3,4,5,6]).take 15
+-- #eval (nonemptySubsetsSuchThat (fun x => x % 2 == 0) [1,2,3,4,5,6]).take 15
 
 def select {α} (as : List α) : LazyList (α × List α) :=
   match as with
@@ -255,37 +255,21 @@ def select {α} (as : List α) : LazyList (α × List α) :=
   | a :: as' =>
     .lcons (a, as') ⟨λ _ => LazyList.mapLazyList (λ (x,as'') => (x, a::as'')) (select as')⟩
 
-theorem select_smaller : ∀ α (l : List α) a l', (a,l') ∈ select l -> l'.length < l.length := by
-  intros α l
-  induction l
-  case nil =>
-    intros a l' hmem
-    simp [select, List.length] at *
-    cases hmem
-  case cons x xs xs_ih =>
-    intros a l' hmem
-    simp [select, List.length] at *
-    cases hmem
-    case InLHead =>
-      simp
-    case InLNext notit tl =>
-      simp [Thunk.get] at tl
-      sorry
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- theorem select_smaller : ∀ α (l : List α) a l', (a,l') ∈ select l -> l'.length < l.length := by
+--   intros α l
+--   induction l
+--   case nil =>
+--     intros a l' hmem
+--     simp [select, List.length] at *
+--     cases hmem
+--   case cons x xs xs_ih =>
+--     intros a l' hmem
+--     simp [select, List.length] at *
+--     cases hmem
+--     case InLHead =>
+--       simp
+--     case InLNext notit tl =>
+--       simp [Thunk.get] at tl
 
 partial def permutations {α} (as : List α) : LazyList (List α) :=
   match as with
@@ -308,7 +292,7 @@ instance [Repr α] [Repr v] : Repr (List (PreScheduleStep α v)) where
       | .Produce out hyp => s!"{repr out} <- {repr hyp}"
       | .Checks hyps => s!"check {repr hyps}"
     "do\n  " ++ String.intercalate "\n  " lines
-#print ConstructorExpr
+
 
 def collectRepeatedNames (lists : List (List Name)) : List Name :=
   let allNames := lists.flatten
@@ -342,6 +326,7 @@ def prune_empties {α v} (schd : List (PreScheduleStep α v)) : List (PreSchedul
       match pss with
       | .Checks [] => l
       | .InstVars [] => l
+      | .Produce [] h => .Checks [h] :: l
       | _ => pss :: l
 
 /- Variables in third elt of hyp should be disjoint from flatten of snd elt
@@ -352,6 +337,8 @@ def prune_empties {α v} (schd : List (PreScheduleStep α v)) : List (PreSchedul
 
    The snd and third elements combined should equal the set vars(hyp.fst)
  -/
+
+ /- C (K a b) c (K2 d) (2 * e) -/
 partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × List (List v) × List v)) (env : List v)
   : LazyList (List (PreScheduleStep α v)) :=
   match hyps with
@@ -359,7 +346,7 @@ partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × Li
   | _ => do
     let ⟨ (hyp, potential_output_indices, always_bound_variables),hyps' ⟩  <- select hyps
     let (some_bound_output_indices, all_unbound_output_indices) := List.partition (List.any . (List.contains env)) potential_output_indices
-    let (out,bound) <- nonemptySubsets all_unbound_output_indices
+    let (out,bound) <- subsets all_unbound_output_indices
     let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
     let env' := bound_vars ++ env
     let (prechecks,to_be_satisfied) := List.partition (needs_checking env') hyps'
@@ -375,36 +362,48 @@ partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × Li
                               ]
                               ++ l) (enum_schedules vars to_be_satisfied' env'')
 
-#eval (permutations [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]).take 3
+-- #eval (permutations [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]).take 3
 #eval (enum_schedules [1,2,3,4] [("A",[[1,2,3],[4]],[]), ("B",[[4]],[])] []).take 15
 
--- Simple test with 2 hypotheses
-#eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] []).take 3
+-- -- Simple test with 2 hypotheses
+-- #eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] []).take 3
 
--- Test with overlapping variables
-#eval (enum_schedules [1,2,3,4,5] [("H1",[[1],[2],[3]],[]), ("H2",[[3],[4]],[]), ("H3",[[4],[5]],[])] []).take 5
+-- -- Test with overlapping variables
+-- #eval (enum_schedules [1,2,3,4,5] [("H1",[[1],[2],[3]],[]), ("H2",[[3],[4]],[]), ("H3",[[4],[5]],[])] []).take 5
 
--- Test with some variables already bound
-#eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] [1])
+-- -- Test with some variables already bound
+-- #eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] [1])
 
--- Larger example to test scalability
-#eval (enum_schedules [1,2,3,4] [("P",[[1],[2]],[]), ("Q",[[2],[3]],[]), ("R",[[3],[4]],[]), ("S",[[1],[4]],[])] []).take 10
+-- -- Larger example to test scalability
+-- #eval (enum_schedules [1,2,3,4] [("P",[[1],[2]],[]), ("Q",[[2],[3]],[]), ("R",[[3],[4]],[]), ("S",[[1],[4]],[])] []).take 10
 
--- Lots of variables (10 variables in one hypothesis)
-#eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("BigHyp",[[1],[2],[3],[4],[5],[6],[7],[8],[9],[10]],[])] []).take 5
+-- -- Lots of variables (10 variables in one hypothesis)
+-- #eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("BigHyp",[[1],[2],[3],[4],[5],[6],[7],[8],[9],[10]],[])] []).take 5
 
--- Lots of hypotheses (10 hypotheses with few variables each)
-#eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("H1",[[1]],[]), ("H2",[[2]],[]), ("H3",[[3]],[]), ("H4",[[4]],[]), ("H5",[[5]],[]),
-                       ("H6",[[6]],[]), ("H7",[[7]],[]), ("H8",[[8]],[]), ("H9",[[9]],[]), ("H10",[[10]],[])] []).take 3
+-- -- Lots of hypotheses (10 hypotheses with few variables each)
+-- #eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("H1",[[1]],[]), ("H2",[[2]],[]), ("H3",[[3]],[]), ("H4",[[4]],[]), ("H5",[[5]],[]),
+--                        ("H6",[[6]],[]), ("H7",[[7]],[]), ("H8",[[8]],[]), ("H9",[[9]],[]), ("H10",[[10]],[])] []).take 3
 
--- Both: many hypotheses with many variables each
-#eval (enum_schedules (List.range 14) [("A",[[1],[2],[3],[4],[5]],[]), ("B",[[3],[4],[5],[6],[7]],[]), ("C",[[5],[6],[7],[8],[9]],[]),
-                       ("D",[[7],[8],[9],[10],[11],[3],[1],[2]],[]), ("E",[[9],[10],[11],[12],[13]],[])] []).take 100
+-- -- Both: many hypotheses with many variables each
+-- #eval (enum_schedules (List.range 14) [("A",[[1],[2],[3],[4],[5]],[]), ("B",[[3],[4],[5],[6],[7]],[]), ("C",[[5],[6],[7],[8],[9]],[]),
+--                        ("D",[[7],[8],[9],[10],[11],[3],[1],[2]],[]), ("E",[[9],[10],[11],[12],[13]],[])] []).take 100
 
-#print ScheduleEnv
+-- #print ScheduleEnv
 
-#print ScheduleStep
-#print DeriveSort
+#eval (@enum_schedules String Nat _ [] [] [])
+
+
+-- Example for BetweenN constructor:
+-- BetweenN : ∀ n m, n <= m -> Between n (.succ n) (.succ (.succ m))
+-- Variables: n, m (inputs), output: Between n (.succ n) (.succ (.succ m))
+-- Hypothesis: n <= m
+-- The hypothesis "n <= m" has variables [n, m] which are both inputs (always bound)
+#eval (enum_schedules [`n, `m] [(`n_le_m, [], [`n, `m])] [`n,`m]).take 5
+
+
+
+-- #print ScheduleStep
+-- #print DeriveSort
 
 -- Determine the right name for the recursive function in the producer
 def recursiveFunctionName deriveSort :=
@@ -437,7 +436,7 @@ def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr Name
     let constrainingRelation ←
       if (← isRecCall outs hyp env.recCall) then
         let inputArgs := filterWithIndex (fun i _ => i ∉ (Prod.snd env.recCall)) hypArgs
-        pure (Source.Rec env.recCall.fst inputArgs)
+        pure (Source.Rec (recursiveFunctionName env.deriveSort) inputArgs)
       else
         pure (Source.NonRec hyp')
     return (ScheduleStep.SuchThat typedOutputs constrainingRelation env.prodSort :: newMatches)
@@ -448,7 +447,7 @@ def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr Name
         let (ctorName, ctorArgs) := ty.getAppFnArgs
         let src ←
           if ctorName == Prod.fst env.recCall
-            then Source.Rec env.recCall.fst <$> ctorArgs.toList.mapM (fun foo => exprToConstructorExpr foo)
+            then Source.Rec (recursiveFunctionName env.deriveSort) <$> ctorArgs.toList.mapM (fun foo => exprToConstructorExpr foo)
           else
             let hypothesisExpr ← exprToHypothesisExpr ty
             match hypothesisExpr with
@@ -456,12 +455,6 @@ def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr Name
             | some hypExpr => pure (Source.NonRec hypExpr)
     return ScheduleStep.Unconstrained v src env.prodSort
     )
-
-
-def possible_schedules' : ScheduleM (LazyList (List ScheduleStep)) := do
-  let env <- read
-
-
 
 
   /- For each permutation, for each of its hypotheses, select which of its
@@ -492,8 +485,6 @@ def possible_schedules' : ScheduleM (LazyList (List ScheduleStep)) := do
   as a constraint has had all its variables bound, a check for it
   should be inserted at that point in the schedule. Finally, return
   the schedules. -/
-  return (.lnil)
-
 
 /-- Depth-first enumeration of all possible schedules.
 
