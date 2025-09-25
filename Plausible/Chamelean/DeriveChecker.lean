@@ -149,9 +149,10 @@ def deriveScheduledChecker (inductiveProp : TSyntax `term) : CommandElabM (TSynt
           -- (i.e. if the constructor has a hypothesis that refers to the inductive relation we are targeting)
           let isRecursive ← isConstructorRecursive inductiveName ctorName
 
+          let unitIdent := Lean.mkIdent ``Unit
           -- Sub-checkers need to be thunked, since we don't want the `checkerBacktrack` combinator
           -- (which expects a list of sub-checkers as inputs) to evaluate all the sub-checkers eagerly
-          let thunkedSubChecker ← `(fun _ => $subChecker)
+          let thunkedSubChecker ← `(fun (_ : $unitIdent) => $subChecker)
 
           if isRecursive then
             recursiveCheckers := recursiveCheckers.push thunkedSubChecker
