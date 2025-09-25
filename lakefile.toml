@@ -17,4 +17,4 @@ leanOptions = {linter.missingDocs = false}
 [[require]]
 name = "batteries"
 scope = "leanprover-community"
-rev = "main"
+rev = "v4.23.0-rc2"

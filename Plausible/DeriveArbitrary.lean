@@ -298,7 +298,7 @@ def mkMutualBlock (ctx : Deriving.Context) : TermElabM Syntax := do
 
 /-- Creates an instance of the `ArbitraryFueled` typeclass -/
 private def mkArbitraryFueledInstanceCmd (declName : Name) : TermElabM (Array Syntax) := do
-  let ctx ← mkContext ``ArbitraryFueled "arbitrary" declName
+  let ctx ← mkContext "arbitrary" declName
   let cmds := #[← mkMutualBlock ctx] ++ (← mkArbitraryFueledInstanceCmds ctx #[declName])
   trace[plausible.deriving.arbitrary] "\n{cmds}"
   return cmds
