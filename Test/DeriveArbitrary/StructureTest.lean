@@ -41,44 +41,7 @@ structure Foo where
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 set_option trace.plausible.deriving.arbitrary true in
-/--
-trace: [plausible.deriving.arbitrary] ⏎
-    [mutual
-       def arbitraryFoo✝ : Nat → Plausible.Gen (@Foo✝) :=
-         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@Foo✝) :=
-           match fuel✝ with
-           | Nat.zero =>
-             Plausible.Gen.oneOfWithDefault
-               (do
-                 let a✝ ← Plausible.Arbitrary.arbitrary
-                 let a✝¹ ← Plausible.Arbitrary.arbitrary
-                 let a✝² ← Plausible.Arbitrary.arbitrary
-                 return Foo.mk a✝ a✝¹ a✝²)
-               [(do
-                   let a✝ ← Plausible.Arbitrary.arbitrary
-                   let a✝¹ ← Plausible.Arbitrary.arbitrary
-                   let a✝² ← Plausible.Arbitrary.arbitrary
-                   return Foo.mk a✝ a✝¹ a✝²)]
-           | fuel'✝ + 1 =>
-             Plausible.Gen.frequency
-               (do
-                 let a✝ ← Plausible.Arbitrary.arbitrary
-                 let a✝¹ ← Plausible.Arbitrary.arbitrary
-                 let a✝² ← Plausible.Arbitrary.arbitrary
-                 return Foo.mk a✝ a✝¹ a✝²)
-               [(1,
-                   (do
-                     let a✝ ← Plausible.Arbitrary.arbitrary
-                     let a✝¹ ← Plausible.Arbitrary.arbitrary
-                     let a✝² ← Plausible.Arbitrary.arbitrary
-                     return Foo.mk a✝ a✝¹ a✝²)),
-                 ]
-         fun fuel✝ => aux_arb fuel✝
-     end,
-     instance : Plausible.ArbitraryFueled✝ (@Foo✝) :=
-       ⟨arbitraryFoo✝⟩]
--/
-#guard_msgs in
+#guard_msgs(error) in
 deriving instance Arbitrary for Foo
 
 /-- info: instArbitraryFueledFoo -/

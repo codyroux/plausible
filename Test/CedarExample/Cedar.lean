@@ -583,7 +583,7 @@ inductive PathSet where
 deriving Repr, BEq
 
 ------------------------------------------------------
--- Typing: Defining "Capabilities" for record access
+-- Typing: Defining "Capabilities" for record acmercess
 ------------------------------------------------------
 
 /-- Membership test of `x` in `ps` -/
@@ -657,7 +657,8 @@ inductive HasType : PathSet → Environment → (CedarExpr × PathSet) → Cedar
 | TCondTrue : ∀ a V E1 E2 E3 x1 x2 T2,
     HasType a V (E1, x1) (CedarType.boolType BoolType.tt) →
     HasType (mergeExprs a x1) V (E2, x2) T2 →
-    HasType a V ((CedarExpr.ite E1 E2 E3), (mergeExprs x1 x2)) T2
+    u = mergeExprs x1 x2 →
+    HasType a V ((CedarExpr.ite E1 E2 E3), u) T2
 | TCondFalse : ∀ a V E1 E2 E3 x1 x3 T3,
     HasType a V (E1, x1) (CedarType.boolType BoolType.ff) →
     HasType a V (E3, x3) T3 →
@@ -734,12 +735,13 @@ inductive HasType : PathSet → Environment → (CedarExpr × PathSet) → Cedar
     HasType a V (e, x) (CedarType.entityType N2) →
     N1 ≠ N2 →
     HasType a V ((CedarExpr.unaryApp (UnaryOp.is N1) e), PathSet.allpaths) (CedarType.boolType BoolType.ff)
-| TCondBool : ∀ a V E1 E2 E3 x1 x2 x3 T2 T3 T,
+| TCondBool : ∀ a V E1 E2 E3 x1 x2 x3 T2 T3 T u,
     SubType T2 T → SubType T3 T →
     HasType a V (E1, x1) (CedarType.boolType BoolType.anyBool) →
     HasType (mergeExprs a x1) V (E2, x2) T2 →
     HasType a V (E3, x3) T3 →
-    HasType a V ((CedarExpr.ite E1 E2 E3), (interExprs (mergeExprs x1 x2) x3)) T
+    u = interExprs (mergeExprs x1 x2) x3 →
+    HasType a V ((CedarExpr.ite E1 E2 E3), u) T
 | TEqEntity : ∀ a x1 x2 V E1 N1 E2 N2 ns ets acts R,
     V = (Environment.MkEnvironment (Schema.MkSchema ets acts) R) →
     DefinedEntities ets ns →

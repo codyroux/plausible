@@ -13,27 +13,8 @@ inductive MyList (α : Type) where
   deriving Repr, BEq
 
 set_option trace.plausible.deriving.arbitrary true in
-/--
-trace: [plausible.deriving.arbitrary] ⏎
-    [mutual
-       def arbitraryMyList✝ {α✝} [Plausible.Arbitrary✝ α✝] : Nat → Plausible.Gen (@MyList✝ α✝) :=
-         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@MyList✝ α✝) :=
-           match fuel✝ with
-           | Nat.zero => Plausible.Gen.oneOfWithDefault (pure MyList.MyNil) [(pure MyList.MyNil)]
-           | fuel'✝ + 1 =>
-             Plausible.Gen.frequency (pure MyList.MyNil)
-               [(1, (pure MyList.MyNil)),
-                 (fuel'✝ + 1,
-                   (do
-                     let a✝ ← Plausible.Arbitrary.arbitrary
-                     let a✝¹ ← aux_arb fuel'✝
-                     return MyList.MyCons a✝ a✝¹))]
-         fun fuel✝ => aux_arb fuel✝
-     end,
-     instance {α✝} [Plausible.Arbitrary✝ α✝] : Plausible.ArbitraryFueled✝ (@MyList✝ α✝) :=
-       ⟨arbitraryMyList✝⟩]
--/
-#guard_msgs in
+
+#guard_msgs(error) in
 deriving instance Arbitrary for MyList
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`

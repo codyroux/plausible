@@ -14,44 +14,7 @@ inductive DummyInductive where
   deriving Repr
 
 set_option trace.plausible.deriving.arbitrary true in
-/--
-trace: [plausible.deriving.arbitrary] ⏎
-    [mutual
-       def arbitraryDummyInductive✝ : Nat → Plausible.Gen (@DummyInductive✝) :=
-         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@DummyInductive✝) :=
-           match fuel✝ with
-           | Nat.zero =>
-             Plausible.Gen.oneOfWithDefault
-               (do
-                 let a✝ ← Plausible.Arbitrary.arbitrary
-                 let a✝¹ ← Plausible.Arbitrary.arbitrary
-                 let a✝² ← Plausible.Arbitrary.arbitrary
-                 return DummyInductive.FromBitVec a✝ a✝¹ a✝²)
-               [(do
-                   let a✝ ← Plausible.Arbitrary.arbitrary
-                   let a✝¹ ← Plausible.Arbitrary.arbitrary
-                   let a✝² ← Plausible.Arbitrary.arbitrary
-                   return DummyInductive.FromBitVec a✝ a✝¹ a✝²)]
-           | fuel'✝ + 1 =>
-             Plausible.Gen.frequency
-               (do
-                 let a✝ ← Plausible.Arbitrary.arbitrary
-                 let a✝¹ ← Plausible.Arbitrary.arbitrary
-                 let a✝² ← Plausible.Arbitrary.arbitrary
-                 return DummyInductive.FromBitVec a✝ a✝¹ a✝²)
-               [(1,
-                   (do
-                     let a✝ ← Plausible.Arbitrary.arbitrary
-                     let a✝¹ ← Plausible.Arbitrary.arbitrary
-                     let a✝² ← Plausible.Arbitrary.arbitrary
-                     return DummyInductive.FromBitVec a✝ a✝¹ a✝²)),
-                 ]
-         fun fuel✝ => aux_arb fuel✝
-     end,
-     instance : Plausible.ArbitraryFueled✝ (@DummyInductive✝) :=
-       ⟨arbitraryDummyInductive✝⟩]
--/
-#guard_msgs in
+#guard_msgs(error) in
 deriving instance Arbitrary for DummyInductive
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`

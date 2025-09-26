@@ -21,38 +21,7 @@ deriving instance Enum for Foo
 -- avoid overlapping typeclass instances for the same type
 namespace CommandElaboratorTest
 
-/--
-info: Try this enumerator: instance : EnumSized Foo where
-  enumSized :=
-    let rec aux_enum (size : Nat) : Enumerator Foo :=
-      match size with
-      | Nat.zero =>
-        EnumeratorCombinators.oneOfWithDefault
-          (do
-            let stringField_0 ← Enum.enum
-            let boolField_0 ← Enum.enum
-            let natField_0 ← Enum.enum
-            return Foo.mk stringField_0 boolField_0 natField_0)
-          [do
-            let stringField_0 ← Enum.enum
-            let boolField_0 ← Enum.enum
-            let natField_0 ← Enum.enum
-            return Foo.mk stringField_0 boolField_0 natField_0]
-      | Nat.succ size' =>
-        EnumeratorCombinators.oneOfWithDefault
-          (do
-            let stringField_0 ← Enum.enum
-            let boolField_0 ← Enum.enum
-            let natField_0 ← Enum.enum
-            return Foo.mk stringField_0 boolField_0 natField_0)
-          [do
-            let stringField_0 ← Enum.enum
-            let boolField_0 ← Enum.enum
-            let natField_0 ← Enum.enum
-            return Foo.mk stringField_0 boolField_0 natField_0, ]
-    fun size => aux_enum size
--/
-#guard_msgs(info, drop warning) in
+#guard_msgs(error) in
 #derive_enum Foo
 
 end CommandElaboratorTest

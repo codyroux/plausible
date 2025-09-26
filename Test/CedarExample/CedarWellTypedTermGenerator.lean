@@ -101,6 +101,37 @@ else
 ```
 
 -/
-
+deriving instance Repr for RequestType
+#eval runSizedGenPrintOutput (
+  let team := EntityName.MkName "Team" []
+  let teamDef := EntitySchemaEntry.MkEntitySchemaEntry [team] []
+  let user := EntityName.MkName "User" []
+  let userDef := EntitySchemaEntry.MkEntitySchemaEntry [team] [("manager", true, CedarType.entityType user)]
+  let lst := EntityName.MkName "List" []
+  let lstDef := EntitySchemaEntry.MkEntitySchemaEntry [] [
+    ("owner", true, CedarType.entityType user),
+    ("readers", true, CedarType.entityType team),
+    ("editors", true, CedarType.entityType team),
+    ("age", true, CedarType.intType),
+    ("description", true, CedarType.stringType)]
+  let app := EntityName.MkName "Application" []
+  let appDef := EntitySchemaEntry.MkEntitySchemaEntry [] []
+  let action := EntityName.MkName "Action" []
+  let actionDef := EntitySchemaEntry.MkEntitySchemaEntry [action] []
+  let ets := [
+    (user, userDef),
+    (team, teamDef),
+    (lst, lstDef),
+    (app, appDef),
+    (action, actionDef)]
+  -- action defs
+  let getAct := ActionSchemaEntry.MkActionSchemaEntry [user] [lst] []
+  let createAct := ActionSchemaEntry.MkActionSchemaEntry [user] [app] []
+  let updateAct := ActionSchemaEntry.MkActionSchemaEntry [user] [lst] []
+  let acts := [ ((EntityUID.MkEntityUID action "getList"), getAct),
+    ((EntityUID.MkEntityUID action "createList"), createAct),
+    ((EntityUID.MkEntityUID action "updateList"), updateAct)]
+  ArbitrarySizedSuchThat.arbitrarySizedST (fun rs => ActionSchemaToRequestTypes acts [] rs)) 5
+#print genCedarExpr
 -- Uncomment this line to see the output from the generator for Cedar expressions
--- #eval runSizedGenPrintOutput genCedarExpr 2
+#eval runSizedGenPrintOutput genCedarExpr 1

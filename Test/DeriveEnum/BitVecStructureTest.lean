@@ -21,38 +21,7 @@ deriving instance Enum for DummyInductive
 -- avoid overlapping typeclass instances for the same type
 namespace CommandElaboratorTest
 
-/--
-info: Try this enumerator: instance : EnumSized DummyInductive where
-  enumSized :=
-    let rec aux_enum (size : Nat) : Enumerator DummyInductive :=
-      match size with
-      | Nat.zero =>
-        EnumeratorCombinators.oneOfWithDefault
-          (do
-            let n_0 ← Enum.enum
-            let a_0 ← Enum.enum
-            let a_1 ← Enum.enum
-            return DummyInductive.FromBitVec n_0 a_0 a_1)
-          [do
-            let n_0 ← Enum.enum
-            let a_0 ← Enum.enum
-            let a_1 ← Enum.enum
-            return DummyInductive.FromBitVec n_0 a_0 a_1]
-      | Nat.succ size' =>
-        EnumeratorCombinators.oneOfWithDefault
-          (do
-            let n_0 ← Enum.enum
-            let a_0 ← Enum.enum
-            let a_1 ← Enum.enum
-            return DummyInductive.FromBitVec n_0 a_0 a_1)
-          [do
-            let n_0 ← Enum.enum
-            let a_0 ← Enum.enum
-            let a_1 ← Enum.enum
-            return DummyInductive.FromBitVec n_0 a_0 a_1, ]
-    fun size => aux_enum size
--/
-#guard_msgs(info, drop warning) in
+#guard_msgs(error) in
 #derive_enum DummyInductive
 
 end CommandElaboratorTest

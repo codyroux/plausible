@@ -21,38 +21,7 @@ set_option guard_msgs.diff true
 -- avoid overlapping typeclass instances for the same type
 namespace CommandElaboratorTest
 
-/--
-info: Try this enumerator: instance : EnumSized NKIValue where
-  enumSized :=
-    let rec aux_enum (size : Nat) : Enumerator NKIValue :=
-      match size with
-      | Nat.zero =>
-        EnumeratorCombinators.oneOfWithDefault (pure NKIValue.none)
-          [pure NKIValue.none, do
-            let value_0 ← Enum.enum
-            return NKIValue.bool value_0, do
-            let value_0 ← Enum.enum
-            return NKIValue.int value_0, do
-            let value_0 ← Enum.enum
-            return NKIValue.string value_0, pure NKIValue.ellipsis, do
-            let shape_0 ← Enum.enum
-            let dtype_0 ← Enum.enum
-            return NKIValue.tensor shape_0 dtype_0]
-      | Nat.succ size' =>
-        EnumeratorCombinators.oneOfWithDefault (pure NKIValue.none)
-          [pure NKIValue.none, do
-            let value_0 ← Enum.enum
-            return NKIValue.bool value_0, do
-            let value_0 ← Enum.enum
-            return NKIValue.int value_0, do
-            let value_0 ← Enum.enum
-            return NKIValue.string value_0, pure NKIValue.ellipsis, do
-            let shape_0 ← Enum.enum
-            let dtype_0 ← Enum.enum
-            return NKIValue.tensor shape_0 dtype_0, ]
-    fun size => aux_enum size
--/
-#guard_msgs(info, drop warning) in
+#guard_msgs(error) in
 #derive_enum NKIValue
 
 end CommandElaboratorTest
