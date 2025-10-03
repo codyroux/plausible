@@ -9,11 +9,11 @@ import Test.CommonDefinitions.ListRelations
 
 set_option guard_msgs.diff true
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_enumerator (fun (l : List Nat) => InList x l)
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_enumerator (fun (l: List Nat) => MinOk l a)
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_enumerator (fun (l: List Nat) => MinEx n l a)

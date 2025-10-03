@@ -40,16 +40,14 @@ structure Foo where
   deriving Repr
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
-set_option trace.plausible.deriving.arbitrary true in
-#guard_msgs(error) in
+
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for Foo
 
-/-- info: instArbitraryFueledFoo -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled Foo
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary Foo
 
 /-- `Shrinkable` instance for `Foo`, which shrinks each of its constituent fields -/

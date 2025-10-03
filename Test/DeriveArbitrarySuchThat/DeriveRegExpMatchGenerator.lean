@@ -1,12 +1,11 @@
 import Plausible.Gen
-import Plausible.Chamelean.OptionTGen
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveConstrainedProducer
 import Test.DeriveArbitrary.DeriveRegExpGenerator
 
 open Plausible
-open ArbitrarySizedSuchThat OptionTGen
+open ArbitrarySizedSuchThat
 
 set_option guard_msgs.diff true
 
@@ -60,9 +59,9 @@ def r0 : RegExp :=
 
 -- Generator for strings that match the regexp `re`
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (s : List Nat) => ExpMatch s re)
 
 -- To sample from this generator and print out 10 successful examples using the `Repr`
 -- instance for `List Nat`, we can run the following:
--- #eval runSizedGenPrintOutput (arbitrarySizedST (fun s => ExpMatch s r)) 10
+-- #eval Gen.run (arbitrarySizedST (fun s => ExpMatch s r) 10) 10

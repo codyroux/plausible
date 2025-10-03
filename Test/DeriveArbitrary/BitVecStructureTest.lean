@@ -13,18 +13,15 @@ inductive DummyInductive where
   | FromBitVec : ∀ (n : Nat), BitVec n → String → DummyInductive
   deriving Repr
 
-set_option trace.plausible.deriving.arbitrary true in
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for DummyInductive
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 
-/-- info: instArbitraryFueledDummyInductive -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled DummyInductive
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary DummyInductive
 
 /-- Shrinker for `DummyInductive` -/

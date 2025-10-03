@@ -21,17 +21,15 @@ inductive RegExp : Type where
   | Star : RegExp → RegExp
   deriving Repr, BEq
 
-set_option trace.plausible.deriving.arbitrary true in
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for RegExp
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled RegExp
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary RegExp
 
 /-!

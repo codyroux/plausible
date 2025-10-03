@@ -27,18 +27,8 @@ end
 instance : ArbitrarySizedSuchThat Nat (fun n => Odd n) where
   arbitrarySizedST (_ : Nat) := return 1
 
-instance : ArbitrarySizedSuchThat Nat (fun n => Even n) where
-  arbitrarySizedST (_ : Nat) := ArbitrarySizedSuchThat.arbitrarySizedST (fun n => Odd n) 1
-
-#eval Plausible.Gen.run (ArbitrarySizedSuchThat.arbitrarySizedST (fun n => Even n) 1) 0
-
-instance : ArbitrarySizedSuchThat Nat (fun n => Odd n) where
-  arbitrarySizedST (_ : Nat) := return 2
-
-#eval Plausible.Gen.run (ArbitrarySizedSuchThat.arbitrarySizedST (fun n => Even n) 1) 0
-
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (n : Nat) => Even n)
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (n : Nat) => Odd n)

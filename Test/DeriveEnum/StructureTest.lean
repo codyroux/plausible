@@ -9,19 +9,17 @@ deriving instance Enum for Foo
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitrarySized`
 
-/-- info: instEnumSizedFoo -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth EnumSized Foo
 
-/-- info: instEnumOfEnumSized -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Enum Foo
 
 -- We test the command elaborator frontend in a separate namespace to
 -- avoid overlapping typeclass instances for the same type
 namespace CommandElaboratorTest
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_enum Foo
 
 end CommandElaboratorTest

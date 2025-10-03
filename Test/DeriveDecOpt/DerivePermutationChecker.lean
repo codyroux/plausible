@@ -4,7 +4,7 @@ import Test.CommonDefinitions.Permutation
 import Test.DeriveEnumSuchThat.DerivePermutationEnumerator
 
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_checker (Permutation l l')
 
 

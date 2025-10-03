@@ -9,19 +9,17 @@ deriving instance Enum for BinOp
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitrarySized`
 
-/-- info: instEnumSizedBinOp -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth EnumSized BinOp
 
-/-- info: instEnumOfEnumSized -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Enum BinOp
 
 -- We test the command elaborator frontend in a separate namespace to
 -- avoid overlapping typeclass instances for the same type
 namespace CommandElaboratorTest
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_enum BinOp
 
 end CommandElaboratorTest

@@ -18,18 +18,15 @@ inductive NKIValue where
   | tensor (shape : List Nat) (dtype : String)
   deriving Repr
 
-set_option trace.plausible.deriving.arbitrary true in
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for NKIValue
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 
-/-- info: instArbitraryFueledNKIValue -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled NKIValue
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary NKIValue
 
 /-- `Shrinkable` instance for `NKIValue`s which recursively

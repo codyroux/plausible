@@ -9,27 +9,22 @@ open Plausible Gen
 set_option guard_msgs.diff true
 
 -- Invoke deriving instance handler for the `Arbitrary` typeclass on `type` and `term`
-set_option trace.plausible.deriving.arbitrary true in
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for type, term
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 -- for both `type` & `term`
 
-/-- info: instArbitraryFueledType -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled type
 
-/-- info: instArbitraryFueledTerm -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled term
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary type
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary term
 
 

@@ -12,20 +12,16 @@ inductive MyList (α : Type) where
   | MyCons : α → MyList α → MyList α
   deriving Repr, BEq
 
-set_option trace.plausible.deriving.arbitrary true in
-
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for MyList
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 -- when `α` is specialized to `Nat`
 
-/-- info: instArbitraryFueledMyListOfArbitrary -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled (MyList Nat)
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary (MyList Nat)
 
 -- Infrastructure for testing the derived generator

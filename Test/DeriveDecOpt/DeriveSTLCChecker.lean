@@ -9,5 +9,5 @@ open DecOpt
 
 set_option guard_msgs.diff true
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_checker (typing Γ e τ)

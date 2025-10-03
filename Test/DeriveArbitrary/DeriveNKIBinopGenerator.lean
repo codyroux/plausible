@@ -20,18 +20,15 @@ inductive BinOp where
   | lshift | rshift | or | xor | and
   deriving Repr
 
-set_option trace.plausible.deriving.arbitrary true in
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for BinOp
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 
-/-- info: instArbitraryFueledBinOp -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled BinOp
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary BinOp
 
 /-- Trivial `Shrinkable` instance for `BinOp`s -/

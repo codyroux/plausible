@@ -1,13 +1,12 @@
 
 import Plausible.Gen
-import Plausible.Chamelean.OptionTGen
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveConstrainedProducer
 import Test.CommonDefinitions.BinaryTree
 
 open Plausible
-open ArbitrarySizedSuchThat OptionTGen
+open ArbitrarySizedSuchThat
 
 set_option guard_msgs.diff true
 
@@ -15,7 +14,7 @@ set_option guard_msgs.diff true
 inductive GoodTree : Nat → Nat → BinaryTree → Prop where
   | GoodLeaf : ∀ n, GoodTree n n .Leaf
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (t : BinaryTree) => GoodTree in1 in2 t)
 
 
@@ -25,5 +24,5 @@ inductive GoodTree : Nat → Nat → BinaryTree → Prop where
 inductive SameHead : List Nat → List Nat → Prop where
 | HeadMatch : ∀ x xs ys, SameHead (x::xs) (x::ys)
 
-#guard_msgs(error) in
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (xs : List Nat) => SameHead xs ys)
