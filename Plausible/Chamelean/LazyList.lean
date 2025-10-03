@@ -38,13 +38,15 @@ instance [Repr α] : Repr (LazyList α) where
   reprPrec l _ := repr l.toList
 
 /-- Retrieves a prefix of the `LazyList` (only the thunks in the prefix are evaluated) -/
-def take (n : Nat) (l : LazyList α) : List α :=
+def take (n : Nat) (l : LazyList α) : List α := go n l []
+  where
+  go n l acc :=
   match n with
-  | .zero => []
+  | .zero => acc
   | .succ n' =>
     match l with
-    | .lnil => []
-    | .lcons x xs => x :: (take n' xs.get)
+    | .lnil => acc
+    | .lcons x xs => go n' xs.get (x :: acc)
 
 def head (l : LazyList α) : Option α :=
   match l with

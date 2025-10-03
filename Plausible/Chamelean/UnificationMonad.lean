@@ -5,7 +5,7 @@ import Lean.Exception
 import Plausible.Chamelean.Idents
 
 
-open Lean Idents
+open Lean Idents Elab
 
 
 -- Adapted from "Generating Good Generators for Inductive Relations", POPL '18
@@ -288,6 +288,9 @@ namespace UnifyM
       with the result returned in the `MetaM` monad as an `Option` -/
   def runInMetaM (action : UnifyM α) (st : UnifyState) : MetaM (Option α) := do
     OptionT.run (StateT.run' action st)
+
+  def runInMetaMKeepState (action : UnifyM α) (st : UnifyState) : MetaM (Option (α × UnifyState)) := do
+    OptionT.run (StateT.run action st)
 
   /-- Finds the `Range` corresponding to an `Unknown` `u` in the
       `UnknownMap` `k`, returning an informative error message if `u ∉ k.keys` -/

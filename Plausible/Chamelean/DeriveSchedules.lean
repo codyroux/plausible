@@ -72,7 +72,7 @@ def mkSortedHypothesesVariablesMap (hypotheses : List HypothesisExpr) : List (Hy
 structure ScheduleEnv where
   /-- List of variables which are universally-quantified in the constructor's type,
       along with the types of these variables -/
-  vars : List (Name × Expr)
+  vars : List TypedVar
 
   /-- Hypotheses about the variables in `vars` -/
   sortedHypotheses : List (HypothesisExpr × List (List Name))
@@ -103,14 +103,15 @@ abbrev ScheduleM (α : Type) := ReaderT ScheduleEnv MetaM α
 def collectCheckSteps (env : ScheduleEnv) (boundVars : List Name) (checkedHypotheses : List Nat) : List (Nat × Source) := do
   let (inductiveName, inputArgs) := env.recCall
 
+  let toCheckSource hyp :=
+    let (ctorName, ctorArgs) := hyp
+    if env.deriveSort == DeriveSort.Checker && inputArgs.isEmpty && ctorName == inductiveName then
+      Source.Rec `aux_dec ctorArgs
+    else .NonRec hyp
+
   let checkSteps := filterMapWithIndex (fun i (hyp, vars) =>
     if i ∉ checkedHypotheses && List.all vars (List.all . (. ∈ boundVars)) then
-      let (ctorName, ctorArgs) := hyp
-      let src :=
-        if env.deriveSort == .Checker && inputArgs.isEmpty && ctorName == inductiveName then
-          Source.Rec `aux_dec ctorArgs
-        else .NonRec hyp
-      some (i, src)
+      some (i, toCheckSource hyp)
     else none) env.sortedHypotheses
 
   checkSteps
@@ -148,6 +149,11 @@ partial def outputsNotConstrainedByFunctionApplication (hyp : HypothesisExpr) (o
         | .Ctor _ args => args.anyM (check b)
         | .FuncApp _ args => args.anyM (check true)
 
+inductive OptionallyTypedVar where
+| TVar : TypedVar -> OptionallyTypedVar
+| UVar : Name -> OptionallyTypedVar
+  deriving Repr, BEq
+
 /-- If we have a hypothesis that we're generating an argument for,
      and that argument is a constructor application where all of its args are outputs,
      then we just need to produce a backtracking check
@@ -166,28 +172,44 @@ partial def outputsNotConstrainedByFunctionApplication (hyp : HypothesisExpr) (o
      - the list of pattern-matches that need to be produced
        (since TT can handle multiple outputs, each of which may need to be constrained by a pattern)
      - the updated thing we're generating for (e.g. `typing G e v_t1t2` in the example above), ie the RHS of the let-bind
-     - the updated output list (e.g. `v_t1t2` in the example above), ie the LHS of the let-bind -/
-def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List Name) : MetaM (List ScheduleStep × HypothesisExpr × List Name) := do
+     - the updated output list (e.g. `v_t1t2` in the example above), ie the LHS of the let-bind
+     TODO: This function's purpose is to find all the matches that needs to be done for this output, but it tries to do it by looking
+     which indicies need to be outputs by searching in them, but we have that info in preschedules, could just use that, filter
+     to those indices, and perform the matches.
+
+     -/
+def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List TypedVar) : MetaM (List ScheduleStep × HypothesisExpr × List (OptionallyTypedVar)) := do
   let (ctorName, ctorArgs) := hyp
 
-  let (patternMatches, args', newOutputs) ← splitThreeLists <$> ctorArgs.mapM (fun arg =>
+  let outputNamesTypes := outputVars.map (fun x => (x.var, x.type))
+
+  let (patternMatches, args', newOutputs) ← splitThreeLists <$> ctorArgs.mapM (fun arg => do
     let vars := variablesInConstructorExpr arg
+
     match arg with
     | .Ctor _ _ =>
-      if !vars.isEmpty && List.all vars (. ∈ outputVars) then do
+      match List.mapM (outputNamesTypes.lookup .) vars with
+      | none => pure (none, arg, none)
+
+      -- throwError m!"Variable in {vars} not found in type environment {outputNamesTypes}"
+      | some _typedOutputs =>
+
+      if !vars.isEmpty then do
         let localCtx ← getLCtx
         let newName := localCtx.getUnusedName (Name.mkStr1 ("v" ++ String.intercalate "_" (Name.getString! <$> vars)))
+        -- let argType ← inferType $ ToExpr.toExpr arg
         match patternOfConstructorExpr arg with
         | none => throwError m!"ConstructorExpr {arg} fails to be converted to pattern in handleConstrainedOutputs"
         | some pat =>
           let newMatch := ScheduleStep.Match newName pat
-          pure (some newMatch, .Unknown newName, some newName)
+          pure (some newMatch, .Unknown newName, some (.UVar newName))
       else
         pure (none, arg, none)
     | .Unknown v =>
-      if v ∈ outputVars then
-        pure (none, arg, some v)
-      else
+      match outputNamesTypes.lookup v with
+      | some ty =>
+        pure (none, arg, some (.TVar ⟨v,ty⟩))
+      | none  =>
         pure (none, arg, none)
     | .FuncApp _ _ =>
       pure (none, arg, none))
@@ -305,14 +327,14 @@ partial def containsFunctionCall (ctrExpr : ConstructorExpr) : Bool :=
   | .Unknown _ => false
   | .Ctor _ args => List.any args (fun x => containsFunctionCall x)
   | .FuncApp _ _ => true
-
+set_option trace.debug true
 def constructHypothesis (hyp : HypothesisExpr × List (List Name)) : HypothesisExpr × List (List Name) × List Name :=
   let repeatedNames := collectRepeatedNames hyp.snd
   let hypIndices := List.zip hyp.fst.snd hyp.snd
   let (mustBind, allSafe) := hypIndices.partition (fun (ctrExpr, vars) =>
     containsFunctionCall ctrExpr || (vars.any (List.contains repeatedNames)))
 
-  (hyp.fst, allSafe.map (fun x => x.snd), repeatedNames ++ mustBind.flatMap (fun x => x.snd))
+  (hyp.fst, allSafe.map (fun x => x.snd), mustBind.flatMap (fun x => x.snd))
 
 def needs_checking {α v} [BEq v] (env : List v) (a_vars : α × List (List v) × List v) : Bool :=
   let (_, potentialIndices, alwaysBound) := a_vars
@@ -347,6 +369,7 @@ partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × Li
     let ⟨ (hyp, potential_output_indices, always_bound_variables),hyps' ⟩  <- select hyps
     let (some_bound_output_indices, all_unbound_output_indices) := List.partition (List.any . (List.contains env)) potential_output_indices
     let (out,bound) <- subsets all_unbound_output_indices
+    if out.length > 1 then .lnil else
     let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
     let env' := bound_vars ++ env
     let (prechecks,to_be_satisfied) := List.partition (needs_checking env') hyps'
@@ -412,7 +435,7 @@ def recursiveFunctionName deriveSort :=
   | .Enumerator => `aux_enum
   | .Checker | .Theorem => `aux_dec
 
-def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr Name) : ScheduleM (List ScheduleStep) := do
+def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr TypedVar) : ScheduleM (List ScheduleStep) := do
   let env <- read
   match preStep with
   | .Checks hyps => return (hyps.map (fun hyp =>
@@ -424,35 +447,40 @@ def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr Name
   | .Produce outs hyp =>
     let (newMatches, hyp', newOutputs) ← handleConstrainedOutputs hyp outs
     let typedOutputs ← newOutputs.mapM
-      (fun v => do
-        match List.lookup v env.vars with
-        | some tyExpr =>
-          let constructorExpr ← exprToConstructorExpr tyExpr
-          pure (v, constructorExpr)
-        | none =>
-          pure (v, .Unknown `_))
+      (fun v =>
+        match v with
+        | .TVar v => do
+          let typ ← exprToConstructorExpr v.type
+          pure (v.var, some typ)
+        | .UVar n =>
+          pure (n, none)
+          )
+        -- match List.lookup v env.vars with
+        -- | some tyExpr =>
+        --   let constructorExpr ← exprToConstructorExpr tyExpr
+        --   pure (v, constructorExpr)
+        -- | none =>
+        --   pure (v, .Unknown `_))
     let (_, hypArgs) := hyp'
 
     let constrainingRelation ←
-      if (← isRecCall outs hyp env.recCall) then
+      if (← isRecCall (outs.map (fun x => x.var)) hyp env.recCall) then
         let inputArgs := filterWithIndex (fun i _ => i ∉ (Prod.snd env.recCall)) hypArgs
         pure (Source.Rec (recursiveFunctionName env.deriveSort) inputArgs)
       else
         pure (Source.NonRec hyp')
     return (ScheduleStep.SuchThat typedOutputs constrainingRelation env.prodSort :: newMatches)
   | .InstVars vars =>
-    vars.mapM (fun v => do
-    let ty ← Option.getDM (List.lookup v env.vars)
-          (throwError m!"key {v} missing from association list {env.vars}")
-        let (ctorName, ctorArgs) := ty.getAppFnArgs
-        let src ←
-          if ctorName == Prod.fst env.recCall
-            then Source.Rec (recursiveFunctionName env.deriveSort) <$> ctorArgs.toList.mapM (fun foo => exprToConstructorExpr foo)
-          else
-            let hypothesisExpr ← exprToHypothesisExpr ty
-            match hypothesisExpr with
-            | none => throwError m!"DFS: unable to convert Expr {ty} to a HypothesisExpr"
-            | some hypExpr => pure (Source.NonRec hypExpr)
+    vars.mapM (fun ⟨v,ty⟩ => do
+    let (ctorName, ctorArgs) := ty.getAppFnArgs
+    let src ←
+      if ctorName == Prod.fst env.recCall
+        then Source.Rec (recursiveFunctionName env.deriveSort) <$> ctorArgs.toList.mapM (fun foo => exprToConstructorExpr foo)
+      else
+        let hypothesisExpr ← exprToHypothesisExpr ty
+        match hypothesisExpr with
+        | none => throwError m!"DFS: unable to convert Expr {ty} to a HypothesisExpr"
+        | some hypExpr => pure (Source.NonRec hypExpr)
     return ScheduleStep.Unconstrained v src env.prodSort
     )
 
@@ -486,7 +514,7 @@ def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr Name
   should be inserted at that point in the schedule. Finally, return
   the schedules. -/
 
-/-- Depth-first enumeration of all possible schedules.
+/- Depth-first enumeration of all possible schedules.
 
     The list of possible schedules boils down to taking a permutation of list of hypotheses -- what this function
     does is it comes up with the list of possible permutations of hypotheses.
@@ -529,6 +557,7 @@ def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr Name
       * For each choice, we can then elaborate the next `ScheduleStep` in our hypothesis permutation (i.e. `typing Γ e1 (TFun 𝜏1 𝜏2)`)
       + Rest of the logic for dealing with permutation (b) is similar to as the 1st permutation
 -/
+/-
 partial def dfs (boundVars : List Name) (remainingVars : List Name) (checkedHypotheses : List Nat) (scheduleSoFar : List ScheduleStep) : ScheduleM (List (List ScheduleStep)) := do
   match remainingVars with
   | [] =>
@@ -617,7 +646,7 @@ partial def dfs (boundVars : List Name) (remainingVars : List Name) (checkedHypo
             (checks ++ newMatches ++ constrainedProdStep :: scheduleSoFar))
 
     return constrainedProdPaths ++ unconstrainedProdPaths
-
+-/
 /-- Takes a `deriveSort` and returns the corresponding `ProducerSort`:
     - If we're deriving a `Checker` or a `Enumerator`, the corresponding `ProducerSort` is an `Enumerator`,
       since its more efficient to enumerate values when checking
@@ -627,6 +656,31 @@ def convertDeriveSortToProducerSort (deriveSort : DeriveSort) : ProducerSort :=
   match deriveSort with
   | .Checker | .Enumerator => ProducerSort.Enumerator
   | .Generator | .Theorem => ProducerSort.Generator
+
+def typePreScheduleStep {α} (tyMap : NameMap Expr) (step : PreScheduleStep α Name) : (PreScheduleStep α TypedVar) :=
+  match step with
+  | .Checks hyps => (.Checks hyps)
+  | .Produce out hyp =>
+    let typedOut := out.map (fun name =>
+      let ty := tyMap.get! name
+      ⟨name, ty⟩)
+    (.Produce typedOut hyp)
+  | .InstVars vars =>
+    let typedVars := vars.map (fun name =>
+      let ty := tyMap.get! name
+      ⟨name, ty⟩)
+    (.InstVars typedVars)
+
+instance [ToString α] [ToString v] : ToString (List (List (PreScheduleStep α v))) where
+  toString schedules :=
+    schedules.map (fun steps =>
+      let lines := steps.map fun step =>
+        match step with
+        | .InstVars vars => s!"{vars} <- arbitrary"
+        | .Produce out hyp => s!"{out} <- {hyp}"
+        | .Checks hyps => s!"check {hyps}"
+      "do\n  " ++ String.intercalate "\n  " lines
+    ) |> String.intercalate "\n\n"
 
 /-- Computes all possible schedules for a constructor
     (each candidate schedule is represented as a `List ScheduleStep`).
@@ -638,26 +692,33 @@ def convertDeriveSortToProducerSort (deriveSort : DeriveSort) : ProducerSort :=
     - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
       + `recCall` represents what a recursive call to the function being derived looks like
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
-def possibleSchedules (vars : List (Name × Expr)) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
 
   let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
+
+  let varNames := vars.map (fun x => x.var)
 
   let prodSort := convertDeriveSortToProducerSort deriveSort
 
   let scheduleEnv := ⟨ vars, sortedHypotheses, deriveSort, prodSort, recCall, fixedVars ⟩
 
-  let remainingVars := List.filter (. ∉ fixedVars) (Prod.fst <$> vars)
+  let remainingVars := List.filter (fun v => not $ fixedVars.contains v) varNames
 
   let (newCheckedIdxs, newCheckedHyps) := List.unzip $ (collectCheckSteps scheduleEnv fixedVars [])
+  let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
   let firstChecks := List.reverse $ (ScheduleStep.Check . true) <$> newCheckedHyps
 
-  let lazyPreSchedules := enum_schedules remainingVars (sortedHypotheses.map constructHypothesis) fixedVars
+  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enum_schedules remainingVars (remainingSortedHypotheses.map constructHypothesis) fixedVars
 
-  let finalPreSchedules := lazyPreSchedules.filter (fun schd => schd.all (fun stp =>
+  let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
+
+  let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
+
+  let finalPreSchedules := typedPreSchedules.filter (fun schd => schd.all (fun stp =>
     match stp with
     | .Produce [_] _ => true
-    | .Produce (_ :: _) _ => false
+    | .Produce (_ :: _) _ => true
     | _ => true))
 
   let lazySchedules := finalPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM preScheduleStepToScheduleStep)
@@ -675,3 +736,19 @@ def possibleSchedules (vars : List (Name × Expr)) (hypotheses : List Hypothesis
 
   -- Sort the schedules in terms of increasing length (we prioritize shorter schedules over longer ones)
   -- return (List.mergeSort lazySchedules (le := fun s1 s2 => s1.length <= s2.length))
+
+
+def blah (vars : List (Name × Expr)) hyps := do
+  let lazyPreSchedules : LazyList (List (PreScheduleStep Name Name)) := enum_schedules (List.map (fun ((name, typ) : Name × Expr) => name) vars) hyps []
+
+  let nameTypeMap := List.foldl (fun m (name,(ty : Expr)) => NameMap.insert m name ty) ∅ vars
+
+  let typedPreSchedules : LazyList (List (PreScheduleStep Name TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
+
+  typedPreSchedules
+
+
+#eval (blah [(`n, .const `Nat []), (`m, .const `Nat [])] [(`n_le_m, [[`m],[`n]], [])]).take 5
+
+-- ESCreate test: forall n s s', s' = addBucket n s → EvalApiCall (n, s) (APICall.CreateBucket, Result.Created n, (Nat.succ n, s'))
+#eval (enum_schedules [`n, `s, `s'] [(`addBucket_eq, [[`s']], [`n, `s])] []).take 5

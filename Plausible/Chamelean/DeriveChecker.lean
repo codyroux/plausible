@@ -130,17 +130,17 @@ def deriveScheduledChecker (inductiveProp : TSyntax `term) : CommandElabM (TSynt
       let mut requiredInstances := #[]
 
       for ctorName in inductiveVal.ctors do
-        let scheduleOption ← (UnifyM.runInMetaM
+        let scheduleOption ← (UnifyM.runInMetaMKeepState
           (getCheckerScheduleForInductiveConstructor inductiveName ctorName freshUnknowns.toList)
             emptyUnifyState)
         match scheduleOption with
-        | some schedule =>
+        | some (schedule, unifyState) =>
           -- Obtain a sub-checker for this constructor, along with an array of all typeclass instances that need to be defined beforehand.
           -- (Under the hood, we compile the schedule to an `MExp`, then compile the `MExp` to a Lean term containing the code for the sub-producer.
           -- This is all done in a state monad: when we detect that a new instance is required, we append it to an array of `TSyntax term`s
           -- (where each term represents a typeclass instance)
           let (subChecker, instances) ← StateT.run (s := #[]) (do
-            let mexp ← scheduleToMExp schedule (.MId `size) (.MId `initSize)
+            let mexp ← scheduleToMExp schedule (.MId `size) (.MId `initSize) unifyState.outputType
             mexpToTSyntax mexp (deriveSort := .Checker))
 
           requiredInstances := requiredInstances ++ instances
