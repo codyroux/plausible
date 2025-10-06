@@ -45,20 +45,20 @@ def schema : Schema :=
     ((EntityUID.MkEntityUID action "updateList"), updateAct)]
   Schema.MkSchema ets acts
 
-/-- A generator for well-typed Cedar expressions, using the derived generators for `RequestTypes`, environments and expressions -/
-def genCedarExpr (fuel : Nat) : Gen CedarExpr :=
-  match schema with
-  | .MkSchema ets acts => do
-    -- Generates `RequestTypes` based on the schema
-    let reqs ← ArbitrarySizedSuchThat.arbitrarySizedST (fun rs => ActionSchemaToRequestTypes acts [] rs) fuel
-    -- Generate a list of environments `envs`
-    let envs ← ArbitrarySizedSuchThat.arbitrarySizedST (fun es => SchemaToEnvironments (.MkSchema ets acts) reqs es) fuel
-    match envs with
-    | v :: _ => do
-      -- Generate a well-typed expression from the first environment `v` in `es`
-      let (expr, _) ← ArbitrarySizedSuchThat.arbitrarySizedST (fun e => HasType (.somepaths []) v e (.boolType .anyBool)) fuel
-      return expr
-    | [] => throw Gen.genericFailure
+/- A generator for well-typed Cedar expressions, using the derived generators for `RequestTypes`, environments and expressions -/
+-- def genCedarExpr (fuel : Nat) : Gen CedarExpr :=
+--   match schema with
+--   | .MkSchema ets acts => do
+--     -- Generates `RequestTypes` based on the schema
+--     let reqs ← ArbitrarySizedSuchThat.arbitrarySizedST (fun rs => ActionSchemaToRequestTypes acts [] rs) fuel
+--     -- Generate a list of environments `envs`
+--     let envs ← ArbitrarySizedSuchThat.arbitrarySizedST (fun es => SchemaToEnvironments (.MkSchema ets acts) reqs es) fuel
+--     match envs with
+--     | v :: _ => do
+--       -- Generate a well-typed expression from the first environment `v` in `es`
+--       let (expr, _) ← ArbitrarySizedSuchThat.arbitrarySizedST (fun e => HasType (.somepaths []) v e (.boolType .anyBool)) fuel
+--       return expr
+--     | [] => throw Gen.genericFailure
 
 /- Below are some Cedar expressions that are produced by the generator above.
 Note that these are *not* well-typed Cedar expressions, because we commented out 18 out of the 41 typing rules in `HasType`
@@ -100,7 +100,9 @@ else
 
 -/
 deriving instance Repr for RequestType
-#eval runSizedGenPrintOutput (
+
+#guard_msgs(drop info) in
+#eval Gen.printSamples $ (
   let team := EntityName.MkName "Team" []
   let teamDef := EntitySchemaEntry.MkEntitySchemaEntry [team] []
   let user := EntityName.MkName "User" []
@@ -116,7 +118,7 @@ deriving instance Repr for RequestType
   let appDef := EntitySchemaEntry.MkEntitySchemaEntry [] []
   let action := EntityName.MkName "Action" []
   let actionDef := EntitySchemaEntry.MkEntitySchemaEntry [action] []
-  let ets := [
+  let _ets := [
     (user, userDef),
     (team, teamDef),
     (lst, lstDef),
@@ -129,7 +131,7 @@ deriving instance Repr for RequestType
   let acts := [ ((EntityUID.MkEntityUID action "getList"), getAct),
     ((EntityUID.MkEntityUID action "createList"), createAct),
     ((EntityUID.MkEntityUID action "updateList"), updateAct)]
-  ArbitrarySizedSuchThat.arbitrarySizedST (fun rs => ActionSchemaToRequestTypes acts [] rs)) 5
+  ArbitrarySizedSuchThat.arbitrarySizedST (fun rs => ActionSchemaToRequestTypes acts [] rs) 5)
 -- #print genCedarExpr
 -- Uncomment this line to see the output from the generator for Cedar expressions
 -- #eval runSizedGenPrintOutput genCedarExpr 1

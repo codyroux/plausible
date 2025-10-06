@@ -7,7 +7,6 @@ open Plausible
 open DecOpt
 
 set_option guard_msgs.diff true
-#print square_of
 
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (n : Nat) => square_of n m)

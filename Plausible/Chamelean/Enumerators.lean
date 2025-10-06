@@ -214,4 +214,4 @@ def runEnum [Enum α] (size : Nat) (limit : Nat := 10) : IO (List α) :=
 /-- Samples from an `ExceptT GenError Enumerator` enumerator that is parameterized by its `size`,
     returning the enumerated list of `Except GenError α` values (containing up to `limit` elements) in the `IO` monad -/
 def runSizedEnum (sizedEnum : Nat → ExceptT GenError Enumerator α) (size : Nat) (limit : Nat := 10) : IO (List (Except GenError α)) :=
-  return (LazyList.toList $ LazyList.take limit $ (sizedEnum size) size)
+  return (LazyList.take limit $ (sizedEnum size) size)

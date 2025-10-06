@@ -9,13 +9,10 @@ inductive LazyList (α : Type u) where
 deriving Inhabited
 
 namespace LazyList
-#print Membership
 
 inductive InLazyList {α : Type u} (a : α) : LazyList α -> Prop where
 | InLHead l : InLazyList a (lcons a l)
 | InLNext b l : a ≠ b -> InLazyList a l.get -> InLazyList a (lcons b l)
-
-#eval 1 :: 2 :: 3 :: []
 
 abbrev InLazyList' {α} l (a : α) := InLazyList a l
 

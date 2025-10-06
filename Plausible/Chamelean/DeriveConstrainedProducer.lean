@@ -321,7 +321,7 @@ def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Exp
         `unknowns == inputNames ∪ { outputName }`, i.e. `unknowns` contains all args to the inductive relation
         listed in order, which coincides with `inputNames ∪ { outputName }` -/
 def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName : Name) (inputNames : List Name) (deriveSort : DeriveSort) (outputNameTypeOption : Option (Name × Expr)) (unknownsArray : Array Unknown) : UnifyM Schedule := do
-  -- logInfo m!"CALL MADE: {inductiveName} {ctorName} {inputNames} {unknownsArray}"
+  logWarning m!"CALL MADE: {inductiveName} {ctorName} {inputNames} {unknownsArray}"
 
   let ctorInfo ← getConstInfoCtor ctorName
   let ctorType := ctorInfo.type
@@ -474,20 +474,13 @@ def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName 
 
       let fstSchd <- fstSchdM
 
-      -- logInfo m!"First one: {scheduleStepsToString fstSchd}"
-
       let countChecks (schd : List ScheduleStep) : Nat :=
         schd.foldl (fun acc step => match step with | .Check _ _ => acc + 1 | _ => acc) 0
-
-      -- let allScheds ← monadLift $ List.mapM id possibleSchedules.toList
-
-      -- logInfo m!"All lengths { List.length <$> allScheds}"
 
       let smallestOfFirst100 <- List.foldlM (fun (shortest,minChecks,minLen) schdM => do
         if minLen == 0 then
           logError m!"WEVE GOT AN EMPTY ONE: {scheduleStepsToString fstSchd}"
         let schd ← schdM
-        -- logInfo m!"{scheduleStepsToString schd}"
         let checkCount := countChecks schd
         let len := schd.length
         if checkCount < minChecks || (checkCount == minChecks && len < minLen) then
@@ -495,7 +488,7 @@ def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName 
         else pure (shortest, minChecks, minLen)) (fstSchd, countChecks fstSchd, fstSchd.length)
                     $ LazyList.take 100 rest.get
 
-      -- logInfo m!"Chosen Schedule: {scheduleStepsToString smallestOfFirst100.1} \n Checks: {smallestOfFirst100.2}"
+      logInfo m!"Chosen Schedule: {scheduleStepsToString smallestOfFirst100.1} \n Checks: {smallestOfFirst100.2}"
 
       -- A *naive* schedule is the first schedule contained in `possibleSchedules`
       let originalNaiveScheduleM := smallestOfFirst100.1

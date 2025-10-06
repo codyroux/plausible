@@ -269,8 +269,6 @@ def nonemptySubsetsSuchThat {α} (p : α -> Bool) (as : List α) :=
 def nonemptySubsets {α} (as : List α) :=
   LazyList.filter (λ (l,_) => not l.isEmpty) (subsets as)
 
--- #eval (nonemptySubsetsSuchThat (fun x => x % 2 == 0) [1,2,3,4,5,6]).take 15
-
 def select {α} (as : List α) : LazyList (α × List α) :=
   match as with
   | [] => .lnil
@@ -386,33 +384,40 @@ partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × Li
                               ++ l) (enum_schedules vars to_be_satisfied' env'')
 
 -- #eval (permutations [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]).take 3
+#guard_msgs(error, drop info) in
 #eval (enum_schedules [1,2,3,4] [("A",[[1,2,3],[4]],[]), ("B",[[4]],[])] []).take 15
 
--- -- Simple test with 2 hypotheses
--- #eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] []).take 3
+-- Simple test with 2 hypotheses
+#guard_msgs(error, drop info) in
+#eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] []).take 3
 
--- -- Test with overlapping variables
--- #eval (enum_schedules [1,2,3,4,5] [("H1",[[1],[2],[3]],[]), ("H2",[[3],[4]],[]), ("H3",[[4],[5]],[])] []).take 5
+-- Test with overlapping variables
+#guard_msgs(error, drop info) in
+#eval (enum_schedules [1,2,3,4,5] [("H1",[[1],[2],[3]],[]), ("H2",[[3],[4]],[]), ("H3",[[4],[5]],[])] []).take 5
 
--- -- Test with some variables already bound
--- #eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] [1])
+-- Test with some variables already bound
+#guard_msgs(error, drop info) in
+#eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] [1])
 
--- -- Larger example to test scalability
--- #eval (enum_schedules [1,2,3,4] [("P",[[1],[2]],[]), ("Q",[[2],[3]],[]), ("R",[[3],[4]],[]), ("S",[[1],[4]],[])] []).take 10
+-- Larger example to test scalability
+#guard_msgs(error, drop info) in
+#eval (enum_schedules [1,2,3,4] [("P",[[1],[2]],[]), ("Q",[[2],[3]],[]), ("R",[[3],[4]],[]), ("S",[[1],[4]],[])] []).take 10
 
--- -- Lots of variables (10 variables in one hypothesis)
--- #eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("BigHyp",[[1],[2],[3],[4],[5],[6],[7],[8],[9],[10]],[])] []).take 5
+-- Lots of variables (10 variables in one hypothesis)
+#guard_msgs(error, drop info) in
+#eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("BigHyp",[[1],[2],[3],[4],[5],[6],[7],[8],[9],[10]],[])] []).take 5
 
--- -- Lots of hypotheses (10 hypotheses with few variables each)
--- #eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("H1",[[1]],[]), ("H2",[[2]],[]), ("H3",[[3]],[]), ("H4",[[4]],[]), ("H5",[[5]],[]),
---                        ("H6",[[6]],[]), ("H7",[[7]],[]), ("H8",[[8]],[]), ("H9",[[9]],[]), ("H10",[[10]],[])] []).take 3
+-- Lots of hypotheses (10 hypotheses with few variables each)
+#guard_msgs(error, drop info) in
+#eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("H1",[[1]],[]), ("H2",[[2]],[]), ("H3",[[3]],[]), ("H4",[[4]],[]), ("H5",[[5]],[]),
+                       ("H6",[[6]],[]), ("H7",[[7]],[]), ("H8",[[8]],[]), ("H9",[[9]],[]), ("H10",[[10]],[])] []).take 3
 
--- -- Both: many hypotheses with many variables each
--- #eval (enum_schedules (List.range 14) [("A",[[1],[2],[3],[4],[5]],[]), ("B",[[3],[4],[5],[6],[7]],[]), ("C",[[5],[6],[7],[8],[9]],[]),
---                        ("D",[[7],[8],[9],[10],[11],[3],[1],[2]],[]), ("E",[[9],[10],[11],[12],[13]],[])] []).take 100
+-- Both: many hypotheses with many variables each
+#guard_msgs(error, drop info) in
+#eval (enum_schedules (List.range 14) [("A",[[1],[2],[3],[4],[5]],[]), ("B",[[3],[4],[5],[6],[7]],[]), ("C",[[5],[6],[7],[8],[9]],[]),
+                       ("D",[[7],[8],[9],[10],[11],[3],[1],[2]],[]), ("E",[[9],[10],[11],[12],[13]],[])] []).take 100
 
--- #print ScheduleEnv
-
+#guard_msgs(error, drop info) in
 #eval (@enum_schedules String Nat _ [] [] [])
 
 
@@ -421,6 +426,7 @@ partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × Li
 -- Variables: n, m (inputs), output: Between n (.succ n) (.succ (.succ m))
 -- Hypothesis: n <= m
 -- The hypothesis "n <= m" has variables [n, m] which are both inputs (always bound)
+#guard_msgs(error, drop info) in
 #eval (enum_schedules [`n, `m] [(`n_le_m, [], [`n, `m])] [`n,`m]).take 5
 
 
@@ -738,17 +744,11 @@ def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) 
   -- return (List.mergeSort lazySchedules (le := fun s1 s2 => s1.length <= s2.length))
 
 
-def blah (vars : List (Name × Expr)) hyps := do
-  let lazyPreSchedules : LazyList (List (PreScheduleStep Name Name)) := enum_schedules (List.map (fun ((name, typ) : Name × Expr) => name) vars) hyps []
+def tryTypedSchedules (vars : List (Name × Expr)) hyps := do
+  let lazyPreSchedules : LazyList (List (PreScheduleStep Name Name)) := enum_schedules (List.map (fun ((name, _typ) : Name × Expr) => name) vars) hyps []
 
   let nameTypeMap := List.foldl (fun m (name,(ty : Expr)) => NameMap.insert m name ty) ∅ vars
 
   let typedPreSchedules : LazyList (List (PreScheduleStep Name TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
 
   typedPreSchedules
-
-
-#eval (blah [(`n, .const `Nat []), (`m, .const `Nat [])] [(`n_le_m, [[`m],[`n]], [])]).take 5
-
--- ESCreate test: forall n s s', s' = addBucket n s → EvalApiCall (n, s) (APICall.CreateBucket, Result.Created n, (Nat.succ n, s'))
-#eval (enum_schedules [`n, `s, `s'] [(`addBucket_eq, [[`s']], [`n, `s])] []).take 5

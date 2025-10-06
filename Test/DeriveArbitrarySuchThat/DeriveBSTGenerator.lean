@@ -61,4 +61,4 @@ def runTests (numTrials : Nat) (useBuggyVersion : Bool := false) : IO Unit := do
   IO.println s!"Chamelean: finished {numTrials} tests, {numSucceeded} passed"
 
 -- Uncomment this to run the aforementioned test harness
-#eval runTests (numTrials := 100) (useBuggyVersion := true)
+-- #eval runTests (numTrials := 100) (useBuggyVersion := true)

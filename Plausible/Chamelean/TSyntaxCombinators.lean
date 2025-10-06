@@ -13,9 +13,7 @@ def mkLetBind (lhs : Ident) (rhsTerms : TSyntaxArray `term) : MetaM (TSyntax `do
     let argTerms := args.toArray
     `(doElem| let $lhs:term ← $f:term $argTerms* )
   | [] => throwError "rhsTerms can't be empty"
-#check fun ((x : Nat), (y : Nat)) => x + y
 
-#print Meta.withLCtx'
 /-- `mkTuple components` creates an n-ary tuple from the `Name`s in the list `components`
     - If `components` is Empty, we produce the unit value `()`
     - If `components` has length 1, we just produce one single `Ident` -/

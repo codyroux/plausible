@@ -272,7 +272,6 @@ mutual
           else
             mkTuple vars
         -- If we have a producer, we can just produce a monadic bind
-        -- logInfo m!"Compiled args: {repr vars}"
         `(do let $compiledArgs:term ← $m1:term ; $k1:term)
       | .Generator, .Checker
       | .Enumerator, .Checker => do
@@ -294,7 +293,6 @@ mutual
           `($andOptListFn [$m1:term, $k1:term])
       | .Checker, .Enumerator
       | .Checker, .OptionTEnumerator => do
-          logInfo m!"Vars enum: {repr vars}"
           -- If there are multiple variables that are bound to the result
           -- of the enumerator `m`, convert them to a tuple
           let args ←
@@ -309,7 +307,6 @@ mutual
           | .Enumerator =>
             -- If a checker invokes an unconstrained enumerator,
             -- we call `EnumeratorCombinators.enumerating` a la QuickChick
-            logInfo m!"Compiled args enum: {repr args}"
             `($enumeratingFn $m1:term (fun $args:term => $k1:term) $fuelForEnumerator:term)
           | .OptionTEnumerator =>
             -- If a checker invokes a contrained enumerator,
@@ -389,12 +386,8 @@ def scheduleStepToMExp (step : ScheduleStep) (defFuel : MExp) (k : MExp) (output
     match src with
     | Source.NonRec hyp => do
       let ty ← hypothesisExprToTSyntaxTerm hyp
-      -- logInfo m!"Type: {ty}"
-      -- logInfo m!"Kind: {(ty.raw.getArg 0).getKind}"
       let tyExpr := ToExpr.toExpr hyp
-      -- logInfo m!"Elabed Type: {tyExpr}"
       let producer ← unconstrainedProducer prodSort ty
-      -- logInfo m!"Debug2: {repr $ (monadSort, producer, [TypedVar.mk v tyExpr])}"
       pure $ .MBind monadSort producer [⟨v,tyExpr⟩] k
     | Source.Rec f args =>
       pure $ .MBind monadSort (recCall f args) [⟨v, outputType⟩] k
