@@ -92,7 +92,7 @@ theorem mapInLazyList : ∀ α β (l : LazyList α) (f : α -> β) a b,
       rw [Hinj Hfa_eq_b] at *
       constructor
     case InLNext b_fx_neq tl =>
-      rw [<- Hfa_eq_b] at b_fx_neq
+      rw [← Hfa_eq_b] at b_fx_neq
       have h : a ≠ x := by exact fun a_1 => b_fx_neq (congrArg f a_1)
       constructor
       . exact h
