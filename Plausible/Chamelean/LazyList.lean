@@ -54,7 +54,7 @@ def head (l : LazyList α) : Option α :=
 def append (xs : LazyList α) (ys : LazyList α) : LazyList α :=
   match xs with
   | lnil => ys
-  | lcons x xs => lcons x ⟨λ _ => (append xs.get ys)⟩
+  | lcons x xs => lcons x ⟨fun _ => (append xs.get ys)⟩
 
 /-- `observe tag i` uses `dbg_trace` to emit a trace of the variable
     associated with `tag` -/
@@ -108,7 +108,7 @@ def filter {α} (p : α -> Bool) (l : LazyList α) : LazyList α :=
   | lnil => lnil
   | lcons a as =>
     if p a then
-      lcons a ⟨λ _ => filter p as.get⟩
+      lcons a ⟨fun _ => filter p as.get⟩
     else
       filter p as.get
 
@@ -141,7 +141,7 @@ def concat (l : LazyList (LazyList α)) : LazyList α :=
   match l with
   | lnil => lnil
   | lcons lnil l' => concat l'.get
-  | lcons (lcons a as) l' => lcons a ⟨ λ _ => (concat (lcons as.get l'))⟩
+  | lcons (lcons a as) l' => lcons a ⟨ fun _ => (concat (lcons as.get l'))⟩
 
 /-- Round-robin concatenation: takes one element from each list in turn -/
 partial def roundRobinConcat (l : LazyList (LazyList α)) : LazyList α :=
@@ -150,10 +150,10 @@ partial def roundRobinConcat (l : LazyList (LazyList α)) : LazyList α :=
     | lnil =>
       match queue with
       | [] => lnil
-      | q :: qs => go (lcons q ⟨λ _ => lnil⟩) qs
+      | q :: qs => go (lcons q ⟨fun _ => lnil⟩) qs
     | lcons lnil rest => go rest.get queue
     | lcons (lcons a as) rest =>
-      lcons a ⟨λ _ => go rest.get (queue ++ [as.get])⟩
+      lcons a ⟨fun _ => go rest.get (queue ++ [as.get])⟩
   go l []
 
 /-- Bind for `LazyList`s is just `concatMap` (same as the list monad) -/

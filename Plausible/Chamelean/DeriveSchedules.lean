@@ -246,7 +246,7 @@ def subsets {α} (as : List α) : LazyList (List α × List α) :=
   | [] => pure ([],[])
   | a :: as' => do
     let (subset,comp) ← subsets as'
-    .lcons (subset,a :: comp) ⟨ λ _ => .lcons (a :: subset, comp) ⟨λ _ => .lnil⟩⟩
+    .lcons (subset,a :: comp) ⟨ fun _ => .lcons (a :: subset, comp) ⟨fun _ => .lnil⟩⟩
 
 /- Unused utility function for future if we wish to prune selections of hypotheses by some predicate -/
 def subsetsSuchThat {α} (p : α -> Bool) (as : List α) : LazyList (List α × List α) :=
@@ -255,15 +255,15 @@ def subsetsSuchThat {α} (p : α -> Bool) (as : List α) : LazyList (List α × 
   | a :: as' => do
     let (subset,comp) ← subsetsSuchThat p as'
     if p a then
-    .lcons (subset,a :: comp) ⟨ λ _ => .lcons (a :: subset, comp) ⟨λ _ => .lnil⟩⟩
+    .lcons (subset,a :: comp) ⟨ fun _ => .lcons (a :: subset, comp) ⟨fun _ => .lnil⟩⟩
     else
-    .lcons (subset,a::comp) ⟨ λ _ => .lnil ⟩
+    .lcons (subset,a::comp) ⟨ fun _ => .lnil ⟩
 
 def select {α} (as : List α) : LazyList (α × List α) :=
   match as with
   | [] => .lnil
   | a :: as' =>
-    .lcons (a, as') ⟨λ _ => LazyList.mapLazyList (λ (x,as'') => (x, a::as'')) (select as')⟩
+    .lcons (a, as') ⟨fun _ => LazyList.mapLazyList (fun (x,as'') => (x, a::as'')) (select as')⟩
 
 inductive PreScheduleStep α v where
 | Checks (hyps : List α)
