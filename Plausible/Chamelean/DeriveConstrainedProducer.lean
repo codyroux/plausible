@@ -478,8 +478,6 @@ def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName 
         schd.foldl (fun acc step => match step with | .Check _ _ => acc + 1 | _ => acc) 0
 
       let smallestOfFirst100 ← List.foldlM (fun (shortest,minChecks,minLen) schdM => do
-        if minLen == 0 then
-          logError m!"WEVE GOT AN EMPTY ONE: {scheduleStepsToString fstSchd}"
         let schd ← schdM
         let checkCount := countChecks schd
         let len := schd.length
