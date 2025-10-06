@@ -10,12 +10,6 @@ structure TypedVar where
   type : Expr
   deriving Repr, BEq
 
-@[coe]
-def TypedVar.toNameAndExpr (t : TypedVar) : Name × Expr := (t.var, t.type)
-
-instance : Coe TypedVar (Name × Expr) where
-  coe := TypedVar.toNameAndExpr
-
 def exprHole : MetaM Expr := mkFreshExprMVar none
 
 /-- `containsNonTrivialFuncApp e inductiveRelationName` determines whether `e` contains a non-trivial function application

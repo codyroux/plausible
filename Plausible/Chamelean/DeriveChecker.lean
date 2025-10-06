@@ -130,7 +130,7 @@ def deriveScheduledChecker (inductiveProp : TSyntax `term) : CommandElabM (TSynt
       let mut requiredInstances := #[]
 
       for ctorName in inductiveVal.ctors do
-        let scheduleOption ← (UnifyM.runInMetaMKeepState
+        let scheduleOption ← (UnifyM.runUnifyM
           (getCheckerScheduleForInductiveConstructor inductiveName ctorName freshUnknowns.toList)
             emptyUnifyState)
         match scheduleOption with

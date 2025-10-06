@@ -16,7 +16,7 @@ inductive InLazyList {α : Type u} (a : α) : LazyList α -> Prop where
 
 abbrev InLazyList' {α} l (a : α) := InLazyList a l
 
-instance {α}: Membership α (LazyList α) :=
+instance {α} : Membership α (LazyList α) :=
  Membership.mk InLazyList'
 
 /-- Tail-recursive helper for converting `LazyList` to `List`, where `acc` is the list accumulated so far
@@ -54,7 +54,7 @@ def head (l : LazyList α) : Option α :=
 def append (xs : LazyList α) (ys : LazyList α) : LazyList α :=
   match xs with
   | lnil => ys
-  | lcons x xs => lcons x ⟨fun _ => (append xs.get ys)⟩
+  | lcons x xs => lcons x ⟨fun _ => append xs.get ys⟩
 
 /-- `observe tag i` uses `dbg_trace` to emit a trace of the variable
     associated with `tag` -/
@@ -67,37 +67,6 @@ def mapLazyList (f : α → β) (l : LazyList α) : LazyList β :=
   match l with
   | .lnil => .lnil
   | .lcons x xs => .lcons (f x) ⟨fun _ => mapLazyList f xs.get⟩
-
-def strong_induction {P : LazyList α → Prop}
-  (h_nil : P lnil)
-  (h_cons : ∀ x xs, P xs.get → P (lcons x xs)) :
-  ∀ l, P l :=
-  let rec aux l :=
-    match l with
-    | lnil => h_nil
-    | lcons x xs => h_cons x xs (aux xs.get)
-  aux
-
-theorem mapInLazyList : ∀ α β (l : LazyList α) (f : α -> β) a b,
-  InLazyList b (mapLazyList f l) -> Function.Injective f -> f a = b -> InLazyList a l := by
-  intros α β l f a b Hinmap Hinj Hfa_eq_b
-  induction l using strong_induction
-  case h_nil =>
-    simp [mapLazyList] at Hinmap
-    cases Hinmap
-  case h_cons x xs IHxs =>
-    simp [mapLazyList] at Hinmap
-    cases Hinmap
-    case InLHead =>
-      rw [Hinj Hfa_eq_b] at *
-      constructor
-    case InLNext b_fx_neq tl =>
-      rw [← Hfa_eq_b] at b_fx_neq
-      have h : a ≠ x := by exact fun a_1 => b_fx_neq (congrArg f a_1)
-      constructor
-      . exact h
-      . exact IHxs tl
-
 
 /-- `Functor` instance for `LazyList` -/
 instance : Functor LazyList where
@@ -143,7 +112,8 @@ def concat (l : LazyList (LazyList α)) : LazyList α :=
   | lcons lnil l' => concat l'.get
   | lcons (lcons a as) l' => lcons a ⟨ fun _ => (concat (lcons as.get l'))⟩
 
-/-- Round-robin concatenation: takes one element from each list in turn -/
+/-- Round-robin concatenation of lazy enumerations: lazily takes one element from the back of each lazy enumeration in turn
+    until there are no more to go, then starts at the head of the enumeration of enumerations. -/
 partial def roundRobinConcat (l : LazyList (LazyList α)) : LazyList α :=
   let rec go (current : LazyList (LazyList α)) (queue : List (LazyList α)) : LazyList α :=
     match current with

@@ -59,9 +59,13 @@ def isRecCall (binding : List Name) (hyp : HypothesisExpr) (recCall : Name × Li
 
   return (ctorName == inductiveName && (recCallOutputIdxes.mergeSort) == (outputPositions.mergeSort))
 
+/-- Given a list of `hypotheses` of an inductive constructor, each containing a list of arguments,
+    pairs each hypothesis with a list containing, for each argument, a list of the variables contained
+    inside that argument. For instance:
 
-/-- Given a list of `hypotheses`, creates an association list mapping each hypothesis to a list of variable names.
-    This list is then sorted in ascending order based on the length of the variable name list.
+    `(C a (K b (H c d)) (3 * e))` is paired with `[[a],[b,c,d],[e]]`
+    It then sorts the list of hypotheses with variables by the total number of variables across all
+    arguments.
     (This is a heuristic, since we would like to work w/ hypotheses that have fewer variables first (fewer generation options to deal with).) -/
 def mkSortedHypothesesVariablesMap (hypotheses : List HypothesisExpr) : List (HypothesisExpr × List (List Name)) :=
   let hypVarMap := hypotheses.map (fun h@(_, ctorArgs) =>
@@ -110,7 +114,7 @@ def collectCheckSteps (env : ScheduleEnv) (boundVars : List Name) (checkedHypoth
     else .NonRec hyp
 
   let checkSteps := filterMapWithIndex (fun i (hyp, vars) =>
-    if i ∉ checkedHypotheses && List.all vars (List.all . (. ∈ boundVars)) then
+    if i ∉ checkedHypotheses && List.all vars (List.all · (· ∈ boundVars)) then
       some (i, toCheckSource hyp)
     else none) env.sortedHypotheses
 
@@ -241,34 +245,42 @@ def normalizeSchedule (steps : List ScheduleStep) : List ScheduleStep :=
       -- Comparison function on blocks of `ScheduleSteps`
       compareBlocks b1 b2 := Ordering.isLE $ Ord.compare b1 b2
 
-def subsets {α} (as : List α) : LazyList (List α × List α) :=
+/-Lazily enumerates pairs where the first elements is all subsets of
+  the given list `as` and the second element is the complement-/
+def subsetsAndComplements {α} (as : List α) : LazyList (List α × List α) :=
   match as with
   | [] => pure ([],[])
   | a :: as' => do
-    let (subset,comp) ← subsets as'
+    let (subset,comp) ← subsetsAndComplements as'
     .lcons (subset,a :: comp) ⟨ fun _ => .lcons (a :: subset, comp) ⟨fun _ => .lnil⟩⟩
 
 /- Unused utility function for future if we wish to prune selections of hypotheses by some predicate -/
-def subsetsSuchThat {α} (p : α -> Bool) (as : List α) : LazyList (List α × List α) :=
+def subsetsAndComplementsSuchThat {α} (p : α -> Bool) (as : List α) : LazyList (List α × List α) :=
   match as with
   | [] => pure ([],[])
   | a :: as' => do
-    let (subset,comp) ← subsetsSuchThat p as'
+    let (subset,comp) ← subsetsAndComplementsSuchThat p as'
     if p a then
     .lcons (subset,a :: comp) ⟨ fun _ => .lcons (a :: subset, comp) ⟨fun _ => .lnil⟩⟩
     else
     .lcons (subset,a::comp) ⟨ fun _ => .lnil ⟩
 
+/-Select takes a list `as` and lazily enumerates pairs of all elements of the list with the unselected remainder of the list-/
 def select {α} (as : List α) : LazyList (α × List α) :=
   match as with
   | [] => .lnil
   | a :: as' =>
     .lcons (a, as') ⟨fun _ => LazyList.mapLazyList (fun (x,as'') => (x, a::as'')) (select as')⟩
 
+/-A `PreScheduleStep α v` is a simplified representation of a `ScheduleStep`. It is parameterized by
+  `α`, which represents a hypothesis, and `v`, which is the type of variables. The first parameter
+  is useful if we want to construct a preschedule without carrying around a complex representation
+  of a hypothesis, the second is useful because we can represent both type-annotated and unannotated
+  preschedules. -/
 inductive PreScheduleStep α v where
-| Checks (hyps : List α)
-| Produce (out : List v) (hyp : α)
-| InstVars (var : List v)
+| Checks (hyps : List α) /- Check a sequence of hypotheses. -/
+| Produce (out : List v) (hyp : α) /- Produce a list of variables `out` such that they satisfy hypotheses `hyp`. -/
+| InstVars (var : List v) /- Instantiate a list of variables according to their type, unconstrained(Arbitrary/Enum). -/
 deriving Repr
 
 instance [Repr α] [Repr v] : Repr (List (PreScheduleStep α v)) where
@@ -279,7 +291,6 @@ instance [Repr α] [Repr v] : Repr (List (PreScheduleStep α v)) where
       | .Produce out hyp => s!"{repr out} ← {repr hyp}"
       | .Checks hyps => s!"check {repr hyps}"
     "do\n  " ++ String.intercalate "\n  " lines
-
 
 def collectRepeatedNames (lists : List (List Name)) : List Name :=
   let allNames := lists.flatten
@@ -298,7 +309,6 @@ def constructHypothesis (hyp : HypothesisExpr × List (List Name)) : HypothesisE
   let hypIndices := List.zip hyp.fst.snd hyp.snd
   let (mustBind, allSafe) := hypIndices.partition (fun (ctrExpr, vars) =>
     containsFunctionCall ctrExpr || (vars.any (List.contains repeatedNames)))
-
   (hyp.fst, allSafe.map (fun x => x.snd), mustBind.flatMap (fun x => x.snd))
 
 def needs_checking {α v} [BEq v] (env : List v) (a_vars : α × List (List v) × List v) : Bool :=
@@ -405,7 +415,7 @@ partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × Li
   | _ => do
     let ⟨ (hyp, potential_output_indices, always_bound_variables),hyps' ⟩ ← select hyps
     let (some_bound_output_indices, all_unbound_output_indices) := List.partition (List.any . (List.contains env)) potential_output_indices
-    let (out,bound) ← subsets all_unbound_output_indices
+    let (out,bound) ← subsetsAndComplements all_unbound_output_indices
     if out.length > 1 then .lnil else
     let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
     let env' := bound_vars ++ env
@@ -413,8 +423,6 @@ partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × Li
     let out_vars := out.flatten
     let env'' := out_vars ++ env'
     let (postchecks,to_be_satisfied') := List.partition (needs_checking env'') to_be_satisfied
-
-
     LazyList.mapLazyList (fun l => prune_empties [.InstVars bound_vars
                               , .Checks (Prod.fst <$> prechecks)
                               , .Produce out_vars hyp
@@ -458,7 +466,6 @@ partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × Li
 #guard_msgs(error, drop info) in
 #eval (@enum_schedules String Nat _ [] [] [])
 
-
 -- Example for BetweenN constructor:
 -- BetweenN : ∀ n m, n <= m -> Between n (.succ n) (.succ (.succ m))
 -- Variables: n, m (inputs), output: Between n (.succ n) (.succ (.succ m))
@@ -468,7 +475,7 @@ partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × Li
 #eval (enum_schedules [`n, `m] [(`n_le_m, [], [`n, `m])] [`n,`m]).take 5
 
 -- Determine the right name for the recursive function in the producer
-def recursiveFunctionName deriveSort :=
+def recursiveFunctionName (deriveSort : DeriveSort) : Name :=
   match deriveSort with
   | DeriveSort.Generator => `aux_arb
   | .Enumerator => `aux_enum
@@ -528,17 +535,17 @@ def convertDeriveSortToProducerSort (deriveSort : DeriveSort) : ProducerSort :=
 
 def typePreScheduleStep {α} (tyMap : NameMap Expr) (step : PreScheduleStep α Name) : (PreScheduleStep α TypedVar) :=
   match step with
-  | .Checks hyps => (.Checks hyps)
+  | .Checks hyps => .Checks hyps
   | .Produce out hyp =>
     let typedOut := out.map (fun name =>
       let ty := tyMap.get! name
       ⟨name, ty⟩)
-    (.Produce typedOut hyp)
+    .Produce typedOut hyp
   | .InstVars vars =>
     let typedVars := vars.map (fun name =>
       let ty := tyMap.get! name
       ⟨name, ty⟩)
-    (.InstVars typedVars)
+    .InstVars typedVars
 
 instance [ToString α] [ToString v] : ToString (List (List (PreScheduleStep α v))) where
   toString schedules :=
@@ -563,36 +570,22 @@ instance [ToString α] [ToString v] : ToString (List (List (PreScheduleStep α v
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
 def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
-
   let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
-
   let varNames := vars.map (fun x => x.var)
-
   let prodSort := convertDeriveSortToProducerSort deriveSort
-
   let scheduleEnv := ⟨ vars, sortedHypotheses, deriveSort, prodSort, recCall, fixedVars ⟩
-
   let remainingVars := List.filter (fun v => not $ fixedVars.contains v) varNames
-
   let (newCheckedIdxs, newCheckedHyps) := List.unzip $ (collectCheckSteps scheduleEnv fixedVars [])
   let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
   let firstChecks := List.reverse $ (ScheduleStep.Check . true) <$> newCheckedHyps
-
   let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enum_schedules remainingVars (remainingSortedHypotheses.map constructHypothesis) fixedVars
-
   let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
-
   let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
-
   let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM preScheduleStepToScheduleStep)
-
   lazySchedules
 
 def tryTypedSchedules (vars : List (Name × Expr)) hyps := do
   let lazyPreSchedules : LazyList (List (PreScheduleStep Name Name)) := enum_schedules (List.map (fun ((name, _typ) : Name × Expr) => name) vars) hyps []
-
-  let nameTypeMap := List.foldl (fun m (name,(ty : Expr)) => NameMap.insert m name ty) ∅ vars
-
+  let nameTypeMap := List.foldl (fun m (name, (ty : Expr)) => NameMap.insert m name ty) ∅ vars
   let typedPreSchedules : LazyList (List (PreScheduleStep Name TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
-
   typedPreSchedules

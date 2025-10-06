@@ -25,8 +25,8 @@ def mkTuple (components : List (Name × Option Expr)) : MetaM (TSyntax `term) :=
   match components with
   | [] => `(())
   | [(var, some ty)] => do
-  let tSyn ← (withOptions setDelaboratorOptions (delabExprInLocalContext lctx ty))
-  `(($(mkIdent var) : $tSyn))
+    let tSyn ← (withOptions setDelaboratorOptions (delabExprInLocalContext lctx ty))
+    `(($(mkIdent var) : $tSyn))
   | [(var, none)] => do
     `($(mkIdent var))
   | (var, oty) :: xs => do

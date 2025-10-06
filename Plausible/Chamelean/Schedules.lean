@@ -12,8 +12,6 @@ open Lean
     applied to some list of arguments, each of which are `ConstructorExpr`s -/
 abbrev HypothesisExpr := Name × List ConstructorExpr
 
-deriving instance Repr for HypothesisExpr
-
 /-- `ToExpr` instance for `HypothesisExpr`
     (for converting `HypothesisExpr`s to Lean `Expr`s) -/
 instance : ToExpr HypothesisExpr where
@@ -95,7 +93,7 @@ def sourceToString source := match source with
 
 def stepToString step := match step with
     | ScheduleStep.Unconstrained name src _ => s!"{name} ← {sourceToString src}"
-    | .SuchThat vars src _ => s!"{vars.map (fun ((name : Name),(_ : Option ConstructorExpr)) => name)} ← {sourceToString src}"
+    | .SuchThat vars src _ => s!"{vars.map (fun ((name : Name), (_ : Option ConstructorExpr)) => name)} ← {sourceToString src}"
     | .Check src true => s!"check {sourceToString src}"
     | .Check src false => s!"check ¬{sourceToString src}"
     | .Match name pattern => s!"match {name} with {repr pattern}"
@@ -153,7 +151,7 @@ partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
       throwError m!"exprToConstructorExpr: We do not support higher order application of {name} in Expr {e}"
   | _ =>
     -- For other expression types (literals, lambdas, etc.), generate a placeholder name
-    throwError m!"exprToConstructorExpr cannot handle: {e}"
+    throwError m!"exprToConstructorExpr can only handle free variables, constants, and applications. Attempted to convert: {e}"
 
 /-- Converts an `Expr` to an `Option HypothesisExpr` -/
 def exprToHypothesisExpr (e : Expr) : MetaM (Option HypothesisExpr) := do

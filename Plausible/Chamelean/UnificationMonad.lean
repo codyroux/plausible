@@ -289,7 +289,7 @@ namespace UnifyM
   def runInMetaM (action : UnifyM α) (st : UnifyState) : MetaM (Option α) := do
     OptionT.run (StateT.run' action st)
 
-  def runInMetaMKeepState (action : UnifyM α) (st : UnifyState) : MetaM (Option (α × UnifyState)) := do
+  def runUnifyM (action : UnifyM α) (st : UnifyState) : MetaM (Option (α × UnifyState)) := do
     OptionT.run (StateT.run action st)
 
   /-- Finds the `Range` corresponding to an `Unknown` `u` in the
