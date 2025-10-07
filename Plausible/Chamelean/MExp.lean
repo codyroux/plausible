@@ -338,7 +338,6 @@ mutual
       -- i.e. check if an instance for `ArbitrarySizedSuchThat` / `EnumSizedSuchThat` with the
       -- specified `argTys` and `prop` already exists
       let (args, argTys) := List.unzip varsTys
-      -- let argTyTerms ← monadLift $ argTys.toArray.mapM constructorExprToTSyntaxTerm
       let argTyExprs := argTys.map (Option.map ToExpr.toExpr)
       let typedArgs := List.zip args argTyExprs
       let argsTuple ← mkTuple typedArgs
@@ -362,7 +361,7 @@ mutual
 end
 
 def nameAndConstructorExprToTypedVar (v : Name × Option ConstructorExpr) : Name × Option Expr :=
-  Prod.map id (ToExpr.toExpr <$> .) v
+  Prod.map id (ToExpr.toExpr <$> ·) v
 
 /-- Compiles a `ScheduleStep` to an `MExp`.
      Note that `MExp` that is returned by this function is represented
@@ -376,8 +375,6 @@ def nameAndConstructorExprToTypedVar (v : Name × Option ConstructorExpr) : Name
     - `mfuel` and `defFuel` are `MExp`s representing the current size and the initial size
       supplied to the generator/enumerator/checker we're deriving
 -/
-
--- #eval elabType `(String)
 
 def scheduleStepToMExp (step : ScheduleStep) (defFuel : MExp) (k : MExp) (outputType : Expr) : CompileScheduleM MExp :=
   match step with
