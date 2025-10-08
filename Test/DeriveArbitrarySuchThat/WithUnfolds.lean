@@ -12,15 +12,15 @@ opaque SomeFoo : TypeBox
 
 def five := 5
 
-inductive FooPred : Nat → Prop where
-| someRefl {x : NatFoo.ty} : x = x → FooPred five
+inductive TypeBoxPred : Nat → Prop where
+| someRefl {x : NatFoo.ty} : x = x → TypeBoxPred five
 
-inductive FooPred' : Nat → Prop where
-| someRefl {x : SomeFoo.ty} : x = x → FooPred' five
+inductive TypeBoxPred' : Nat → Prop where
+| someRefl {x : SomeFoo.ty} : x = x → TypeBoxPred' five
 
 #guard_msgs(error, drop warning, drop info) in
-#derive_generator (fun (n : Nat) => FooPred n)
+#derive_generator (fun (n : Nat) => TypeBoxPred n)
 
 /-- error: exprToHypothesisExpr: unable to convert SomeFoo.1 to a HypothesisExpr, must be a constructor or an inductive applied to arguments. -/
 #guard_msgs(error, drop warning, drop info) in
-#derive_generator (fun (n : Nat) => FooPred' n)
+#derive_generator (fun (n : Nat) => TypeBoxPred' n)
