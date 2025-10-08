@@ -21,6 +21,7 @@ import Test.DeriveArbitrarySuchThat.SimultaneousMatchingTests
 import Test.DeriveArbitrarySuchThat.FunctionCallsTest
 import Test.DeriveArbitrarySuchThat.DerivePermutationGenerator
 import Test.DeriveArbitrarySuchThat.MutuallyRecursiveRelationsTest
+import Test.DeriveArbitrarySuchThat.WithUnfolds
 
 -- Tests for `deriving Arbitrary`
 import Test.DeriveArbitrary.DeriveTreeGenerator
@@ -36,8 +37,9 @@ import Test.DeriveArbitrary.MissingNonRecursiveConstructorTest
 import Test.DeriveArbitrary.ParameterizedTypeTest
 import Test.DeriveArbitrary.MutuallyRecursiveTypeTest
 
--- Tests for instances of `Enum` for simple types
+-- Tests for instances of `Enum` for simple types and for correctness of enumerator combinators
 import Test.Enum.EnumInstancesTest
+import Test.Enum.EnumeratorSizeTest
 
 -- Tests for `deriving Enum`
 import Test.DeriveEnum.DeriveTreeEnumerator
