@@ -5,6 +5,7 @@ import Plausible.Chamelean.Schedules
 import Plausible.Chamelean.UnificationMonad
 import Plausible.Chamelean.MakeConstrainedProducerInstance
 import Plausible.Chamelean.LazyList
+import Lean.Util.SCC
 
 
 open Lean Meta
@@ -35,6 +36,7 @@ def variablesInConstructorExpr (ctorExpr : ConstructorExpr) : List Name :=
   match ctorExpr with
   | .Unknown u => [u]
   | .Ctor _ args | .FuncApp _ args => args.flatMap variablesInConstructorExpr
+  | .Lit _ => []
 
 /-- Given a hypothesis `hyp`, along with `binding` (a list of variables that we are binding with a call to a generator), plus `recCall` (a pair contianing the name of the inductive and a list of output argument indices),
     this function checks whether the generator we're using is recursive.
@@ -152,6 +154,7 @@ partial def outputsNotConstrainedByFunctionApplication (hyp : HypothesisExpr) (o
         | .Unknown u => return (b && u ∈ outputVars)
         | .Ctor _ args => args.anyM (check b)
         | .FuncApp _ args => args.anyM (check true)
+        | .Lit _ => return false
 
 private inductive OptionallyTypedVar where
 | TVar : TypedVar -> OptionallyTypedVar
@@ -215,7 +218,11 @@ def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List TypedVar)
       | none  =>
         pure (none, arg, none)
     | .FuncApp _ _ =>
-      pure (none, arg, none))
+      pure (none, arg, none)
+    | .Lit _ =>
+      pure (none, arg, none)
+
+      )
 
   return (patternMatches.filterMap id, (ctorName, args'), newOutputs.filterMap id)
 
@@ -251,7 +258,7 @@ private def subsetsAndComplements {α} (as : List α) : LazyList (List α × Lis
   | [] => pure ([],[])
   | a :: as' => do
     let (subset,comp) ← subsetsAndComplements as'
-    .lcons (subset,a :: comp) ⟨ fun _ => .lcons (a :: subset, comp) ⟨fun _ => .lnil⟩⟩
+    .lcons (a :: subset,comp) ⟨ fun _ => .lcons (subset,a :: comp) ⟨fun _ => .lnil⟩⟩
 
 /- Unused utility function for future if we wish to prune selections of hypotheses by some predicate -/
 private def subsetsAndComplementsSuchThat {α} (p : α -> Bool) (as : List α) : LazyList (List α × List α) :=
@@ -302,13 +309,14 @@ private partial def containsFunctionCall (ctrExpr : ConstructorExpr) : Bool :=
   | .Unknown _ => false
   | .Ctor _ args => List.any args (fun x => containsFunctionCall x)
   | .FuncApp _ _ => true
+  | .Lit _ => false
 
 private def constructHypothesis (hyp : HypothesisExpr × List (List Name)) : HypothesisExpr × List (List Name) × List Name :=
   let repeatedNames := collectRepeatedNames hyp.snd
   let hypIndices := List.zip hyp.fst.snd hyp.snd
   let (mustBind, allSafe) := hypIndices.partition (fun (ctrExpr, vars) =>
     containsFunctionCall ctrExpr || (vars.any (List.contains repeatedNames)))
-  (hyp.fst, allSafe.map (fun x => x.snd), mustBind.flatMap (fun x => x.snd))
+  (hyp.fst, allSafe.map (fun x => x.snd), (List.eraseDups mustBind).flatMap (fun x => x.snd))
 
 private def needs_checking {α v} [BEq v] (env : List v) (a_vars : α × List (List v) × List v) : Bool :=
   let (_, potentialIndices, alwaysBound) := a_vars
@@ -324,6 +332,34 @@ private def prune_empties {α v} (schd : List (PreScheduleStep α v)) : List (Pr
       | .InstVars [] => l
       | .Produce [] h => .Checks [h] :: l
       | _ => pss :: l
+
+def computeSCC {v a} [DecidableEq v] (hypotheses : List (a × List v)) : List (List (a × List v)) :=
+  let indices := List.range hypotheses.length
+  let successors := fun i =>
+    indices.filter fun j =>
+      i ≠ j &&
+      match hypotheses[i]?, hypotheses[j]? with
+      | some (_, vars), some (_, vars') => vars.any (· ∈ vars')
+      | _, _ => false
+  let sccIndices := Lean.SCC.scc indices successors
+  sccIndices.map fun component =>
+    component.filterMap (fun i => hypotheses[i]?)
+
+#guard_msgs(error, drop info) in
+#eval computeSCC [("H", [1,2,3]), ("I", [4,5]), ("J",[5,1])]
+
+-- Example: Two connected components {a,b,c} & {a} vs {d} & {d,e}
+#guard_msgs(error, drop info) in
+#eval computeSCC [("H1", ["a", "b", "c"]), ("H2", ["a"]), ("H3", ["d"]), ("H4", ["d", "e"])]
+
+-- Example: All connected through shared variables
+#guard_msgs(error, drop info) in
+#eval computeSCC [("H1", ["a"]), ("H2", ["a", "b"]), ("H3", ["b", "c"]), ("H4", ["c"])]
+
+-- Example: No connections (all separate)
+#guard_msgs(error, drop info) in
+#eval computeSCC [("H1", ["a"]), ("H2", ["b"]), ("H3", ["c"])]
+
 
   /- For each permutation, for each of its hypotheses, select which of its
   unbound variables should be instantiated to satisfy it.
@@ -473,6 +509,59 @@ private partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (
 #guard_msgs(error, drop info) in
 #eval (enum_schedules [`n, `m] [(`n_le_m, [], [`n, `m])] [`n,`m]).take 5
 
+partial def enum_schedules' {α v} [BEq v] (vars : List v) (hypComps : List (List (α × List (List v) × List v))) (env : List v)
+  : LazyList (List (PreScheduleStep α v)) :=
+  match hypComps with
+  | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
+  | [] :: hypComps' => enum_schedules' vars hypComps' env
+  | hyps :: hypComps' => do
+    let ⟨ (hyp, potential_output_indices, always_bound_variables),hyps' ⟩ ← select hyps
+    let (some_bound_output_indices, all_unbound_output_indices) := List.partition (fun l => List.any l (List.contains env) || l.isEmpty) potential_output_indices
+    let (out,bound) ← subsetsAndComplements all_unbound_output_indices
+    if out.length > 1 then .lnil else
+    let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
+    let env' := bound_vars ++ env
+    let (prechecks,to_be_satisfied) := List.partition (needs_checking env') hyps'
+    let out_vars := out.flatten
+    let env'' := out_vars ++ env'
+    let (postchecks,to_be_satisfied') := List.partition (needs_checking env'') to_be_satisfied
+    LazyList.mapLazyList (fun l => prune_empties [.InstVars bound_vars
+                              , .Checks (Prod.fst <$> prechecks)
+                              , .Produce out_vars hyp
+                              , .Checks (Prod.fst <$> postchecks)
+                              ]
+                              ++ l) (enum_schedules' vars (to_be_satisfied' :: hypComps') env'')
+
+#guard_msgs(error, drop info) in
+#eval (enum_schedules' [1,2,3,4] [[("A",[[1,2,3],[4]],[])], [("B",[[4]],[])]] []).take 15
+
+-- Two separate SCCs: {H1,H2} share 'a', {H3,H4} share 'd'
+#guard_msgs(error, drop info) in
+#eval (enum_schedules' ["a","b","c","d","e"] [[("H1",[["a"],["b"],["c"]],[]), ("H2",[["a"]],[])], [("H3",[["d"]],[]), ("H4",[["d"],["e"]],[])]] []).take 100
+
+-- Three SCCs: connected chain, isolated, pair
+#guard_msgs(error, drop info) in
+#eval (enum_schedules' [1,2,3,4,5,6] [[("A",[[1],[2]],[]), ("B",[[2],[3]],[]), ("C",[[3]],[])], [("D",[[4]],[])], [("E",[[5]],[]), ("F",[[5],[6]],[])]] []).take 100
+
+-- Multiple single-node SCCs
+#guard_msgs(error, drop info) in
+#eval (enum_schedules' [1,2,3] [[("X",[[1]],[])], [("Y",[[2]],[])], [("Z",[[3]],[])]] []).take 2
+
+-- Comparison: enum_schedules vs enum_schedules' - total schedule counts
+-- Example 1: Two separate SCCs should reduce schedules significantly
+#guard_msgs(error, drop info) in
+#eval (enum_schedules ["a","b","c","d"] [("H1",[["a"],["b"]],[]), ("H2",[["a"]],[]), ("H3",[["c"],["d"]],[]), ("H4",[["c"]],[])] []).length
+
+#guard_msgs(error, drop info) in
+#eval (enum_schedules' ["a","b","c","d"] [[("H1",[["a"],["b"]],[]), ("H2",[["a"]],[])], [("H3",[["c"],["d"]],[]), ("H4",[["c"]],[])]] []).length
+
+-- Example 2: Single SCC should have same count
+#guard_msgs(error, drop info) in
+#eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] []).length
+
+#guard_msgs(error, drop info) in
+#eval (enum_schedules' [1,2,3] [[("A",[[1],[2]],[]), ("B",[[2],[3]],[])]] []).length
+
 -- Determine the right name for the recursive function in the producer
 private def recursiveFunctionName (deriveSort : DeriveSort) : Name :=
   match deriveSort with
@@ -574,12 +663,33 @@ def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) 
   let remainingVars := List.filter (fun v => not $ fixedVars.contains v) varNames
   let (newCheckedIdxs, newCheckedHyps) := List.unzip $ (collectCheckSteps scheduleEnv fixedVars [])
   let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
+  let connectedHypotheses := (computeSCC (remainingSortedHypotheses.map (fun (h,vars) => ((h,vars),vars.flatten)))).map (List.map fun ((h,vars),_) => constructHypothesis (h,vars))
   let firstChecks := List.reverse $ (ScheduleStep.Check . true) <$> newCheckedHyps
-  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enum_schedules remainingVars (remainingSortedHypotheses.map constructHypothesis) fixedVars
+  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enum_schedules' remainingVars connectedHypotheses fixedVars
   let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
   let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
   let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM preScheduleStepToScheduleStep)
   lazySchedules
+
+-- Complex example with many hypotheses (ValidCtrlAl constructor)
+#guard_msgs(error, drop info) in
+#eval computeSCC [("ValidAluHeader", ["header"]), ("ValidEvents", ["events"]), ("ValidDtype64", ["dtype"]), ("ValidAluOp", ["op"]), ("ValidRegisterRead", ["src0_lo"]), ("ValidRegisterRead", ["src0_hi"]), ("ValidRegisterRead", ["src1_lo"]), ("ValidRegisterRead", ["src1_hi"]), ("ValidRegisterWrite", ["dst_lo"]), ("ValidRegisterWrite", ["dst_hi"]), ("CtrlAlValidRegisterOpCombination", ["op", "dtype"]), ("CtrlAlValidDtype", ["dtype"])]
+
+#guard_msgs(error, drop info) in
+#eval (enum_schedules ["header", "events", "dtype", "op", "src0_lo", "src0_hi", "src1_lo", "src1_hi", "dst_lo", "dst_hi"] [("ValidAluHeader", [["header"]],[]), ("ValidEvents", [["events"]],[]), ("ValidDtype64", [["dtype"]],[]), ("ValidAluOp", [["op"]],[]), ("ValidRegisterRead1", [["src0_lo"]],[]), ("ValidRegisterRead2", [["src0_hi"]],[]), ("ValidRegisterRead3", [["src1_lo"]],[]), ("ValidRegisterRead4", [["src1_hi"]],[]), ("ValidRegisterWrite1", [["dst_lo"]],[]), ("ValidRegisterWrite2", [["dst_hi"]],[]), ("CtrlAlValidRegisterOpCombination", [["op"], ["dtype"]],[]), ("CtrlAlValidDtype", [["dtype"]],[])] []).take 3
+
+#guard_msgs(error, drop info) in
+#eval (enum_schedules' ["header", "events", "dtype", "op", "src0_lo", "src0_hi", "src1_lo", "src1_hi", "dst_lo", "dst_hi", "datasrc", "imm"]
+  [[("ValidAluHeader", [["header"]],[])],
+   [("ValidEvents", [["events"]],[])],
+   [("ValidDtype64", [["dtype"],[],[],[]],[]), ("CtrlAlValidRegisterOpCombination", [["op"], ["dtype"]],[]), ("ValidAluOp", [["op"]],[]), ("CtrlAlValidDtype", [["dtype"]],[])],
+   [("ValidRegisterRead1", [["src0_lo"]],[])],
+   [("ValidRegisterRead2", [["src0_hi"]],[])],
+   [("ValidRegisterRead3", [["src1_lo"]],[])],
+   [("ValidRegisterRead4", [["src1_hi"]],[])],
+   [("ValidRegisterWrite1", [["dst_lo"]],[])],
+   [("ValidRegisterWrite2", [["dst_hi"]],[])]] [
+   ]).length
 
 private def tryTypedSchedules (vars : List (Name × Expr)) hyps := do
   let lazyPreSchedules : LazyList (List (PreScheduleStep Name Name)) := enum_schedules (List.map (fun ((name, _typ) : Name × Expr) => name) vars) hyps []

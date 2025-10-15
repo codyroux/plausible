@@ -156,13 +156,7 @@ partial def convertExprToRangeInCurrentContext (e : Expr) : UnifyM Range := do
     else
       match e with
       | .const u _ => return (.Unknown u)
-      | .lit literal =>
-        -- Nat / String literals correspond to a `Range` that is a nullary constructor
-        let name :=
-          match literal with
-          | .natVal n => Name.mkStr1 (toString n)
-          | .strVal s => Name.mkStr1 s
-        return .Ctor name []
+      | .lit literal => return .Lit literal
       | _ => throwError m!"Cannot convert expression {e} to Range"
 
 /-- Converts a hypothesis (reprented as a `TSyntax term`) to a `Range` -/
@@ -190,6 +184,7 @@ def convertPatternToTerm (pattern : Pattern) : MetaM (TSyntax `term) :=
     let ctorIdent := mkIdent ctorName
     let argSyntaxes ← args.mapM convertPatternToTerm
     argSyntaxes.foldlM (fun acc arg => `($acc $arg)) ctorIdent
+  | .LitPattern l => mkLiteral l
 
 
 /-- Converts a `Range` to a `ConstructorExpr`
@@ -200,6 +195,8 @@ partial def convertRangeToConstructorExpr (r : Range) : UnifyM ConstructorExpr :
   | .Ctor ctorName args => do
     let updatedArgs ← args.mapM convertRangeToConstructorExpr
     return (.Ctor ctorName updatedArgs)
+  | .Lit l =>
+    return .Lit l
   | _ => throwError m!"Unable to convert {r} to a constructor expression"
 
 /-- Converts a `Range` that is either an `Unknown` or `Ctor` to
@@ -255,7 +252,9 @@ def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Exp
   -- Find all sub-terms which are non-trivial function applications
   let funcAppExprs ← conclusion.foldlM (init := []) (fun acc subExpr => do
     if (← containsNonTrivialFuncApp subExpr inductiveRelationName)
-      then pure (subExpr :: acc)
+      then
+      logWarning m!"{repr subExpr} has a function call in it"
+      pure (subExpr :: acc)
     else
       pure acc)
 
@@ -323,7 +322,7 @@ def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Exp
 def getScheduleForInductiveRelationConstructor
   (inductiveName : Name) (ctorName : Name) (inputNames : List Name)
   (deriveSort : DeriveSort) (outputNameTypeOption : Option (Name × Expr)) (unknownsArray : Array Unknown) : UnifyM Schedule := do
-  logWarning m!"CALL MADE: {inductiveName} {ctorName} {inputNames} {unknownsArray}"
+  trace[plausible.deriving.arbitrary] "Schedule requested for inductive {inductiveName}'s constructor, {ctorName} with inputs: {inputNames} and outputs: {unknownsArray}"
 
   let ctorInfo ← getConstInfoCtor ctorName
   let ctorType := ctorInfo.type
@@ -478,16 +477,16 @@ def getScheduleForInductiveRelationConstructor
       let countChecks (schd : List ScheduleStep) : Nat :=
         schd.foldl (fun acc step => match step with | .Check _ _ => acc + 1 | _ => acc) 0
 
-      let smallestOfFirst100 ← List.foldlM (fun (shortest,minChecks,minLen) schdM => do
+      let smallestOfFirst100 ← List.foldlM (fun (shortest,minChecks,minLen, countSeen) schdM => do
         let schd ← schdM
         let checkCount := countChecks schd
         let len := schd.length
         if checkCount < minChecks || (checkCount == minChecks && len < minLen) then
-          pure (schd, checkCount, len)
-        else pure (shortest, minChecks, minLen)) (fstSchd, countChecks fstSchd, fstSchd.length)
-                    $ LazyList.take 100 rest.get
+          pure (schd, checkCount, len, countSeen + 1)
+        else pure (shortest, minChecks, minLen, countSeen + 1)) (fstSchd, countChecks fstSchd, fstSchd.length, 1)
+                    $ LazyList.take 100000 rest.get
 
-      logInfo m!"Chosen Schedule: {scheduleStepsToString smallestOfFirst100.1} \n Checks: {smallestOfFirst100.2}"
+      logInfo m!"Chosen Schedule: {scheduleStepsToString smallestOfFirst100.1} \nChecks: {smallestOfFirst100.2} \nSchedules Considered: {smallestOfFirst100.2.2.2}"
 
       -- A *naive* schedule is the first schedule contained in `possibleSchedules`
       let originalNaiveScheduleM := smallestOfFirst100.1

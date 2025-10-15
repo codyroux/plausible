@@ -81,3 +81,8 @@ def mkMatchExprWithScrutineeTerm (scrutinee : TSyntax `term) (cases : TSyntaxArr
     is a `doElem` (i.e. it is part of a monadic `do`-block) -/
 def mkDoElemMatchExpr (scrutinee : TSyntax `term) (cases : TSyntaxArray ``Term.matchAlt) : MetaM (TSyntax `doElem) :=
   `(doElem| match $scrutinee:term with $cases:matchAlt*)
+
+def mkLiteral (l : Literal) : MetaM (TSyntax `term) :=
+  match l with
+  | .natVal n => `($(Syntax.mkNumLit (toString n)))
+  | .strVal s => `($(Syntax.mkStrLit s))
