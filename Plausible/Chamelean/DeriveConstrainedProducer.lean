@@ -253,7 +253,7 @@ def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Exp
   let funcAppExprs ← conclusion.foldlM (init := []) (fun acc subExpr => do
     if (← containsNonTrivialFuncApp subExpr inductiveRelationName)
       then
-      logWarning m!"{repr subExpr} has a function call in it"
+      trace[plausible.deriving.arbitrary]  m!"{repr subExpr} has a function call in it"
       pure (subExpr :: acc)
     else
       pure acc)
@@ -633,7 +633,7 @@ def deriveConstrainedProducer (outputVar : Ident) (outputTypeSyntax : TSyntax `t
 
       if (not requiredInstances.isEmpty) then
         let deduplicatedInstances := List.eraseDups requiredInstances.toList
-        logWarning m!"Required typeclass instances (please derive these first if they aren't already defined):\n{deduplicatedInstances}"
+        trace[plausible.deriving.arbitrary]  m!"Required typeclass instances (please derive these first if they aren't already defined):\n{deduplicatedInstances}"
 
       -- Collect all the base / inductive producers into two Lean list terms
       -- Base producers are invoked when `size = 0`, inductive producers are invoked when `size > 0`
