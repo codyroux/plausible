@@ -71,6 +71,7 @@ def mapLazyList (f : α → β) (l : LazyList α) : LazyList β :=
   | .lnil => .lnil
   | .lcons x xs => .lcons (f x) ⟨fun _ => mapLazyList f xs.get⟩
 
+/-- Length of a LazyList. Warning: this forces the whole list. -/
 def length (l : LazyList α) : Nat :=
   let rec aux l n :=
     match l with

@@ -477,28 +477,33 @@ def getScheduleForInductiveRelationConstructor
       let countChecks (schd : List ScheduleStep) : Nat :=
         schd.foldl (fun acc step => match step with | .Check _ _ => acc + 1 | _ => acc) 0
 
-      let smallestOfFirst100 ← List.foldlM (fun (shortest,minChecks,minLen, countSeen) schdM => do
+      let mut minChecks := countChecks fstSchd
+      let mut countSeen  := 1
+      let mut minLen     := fstSchd.length
+      let mut bestSchedule   := fstSchd
+
+      let prefixSize := 100000
+
+      for schdM in LazyList.take prefixSize rest.get do
         let schd ← schdM
         let checkCount := countChecks schd
+        countSeen := countSeen + 1
         let len := schd.length
         if checkCount < minChecks || (checkCount == minChecks && len < minLen) then
-          pure (schd, checkCount, len, countSeen + 1)
-        else pure (shortest, minChecks, minLen, countSeen + 1)) (fstSchd, countChecks fstSchd, fstSchd.length, 1)
-                    $ LazyList.take 100000 rest.get
+          bestSchedule := schd
+          minChecks := checkCount
+          minLen := len
 
-      logInfo m!"Chosen Schedule: {scheduleStepsToString smallestOfFirst100.1} \nChecks: {smallestOfFirst100.2} \nSchedules Considered: {smallestOfFirst100.2.2.2}"
+      trace[plausible.deriving.arbitrary] m!"Chosen Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length: {(minChecks, minLen)} \nSchedules Considered: {repr countSeen}"
 
-      -- A *naive* schedule is the first schedule contained in `possibleSchedules`
-      let originalNaiveScheduleM := smallestOfFirst100.1
-      -- Update the naive schedule with the result of unification
-      let updatedNaiveScheduleUnify ← updateScheduleSteps originalNaiveScheduleM
-      let updatedNaiveSchedule := updatedNaiveScheduleUnify
+      -- Update the best schedule with the result of unification
+      let updatedBestSchedule ← updateScheduleSteps bestSchedule
       let finalState ← get
 
       -- Takes the `patterns` and `equalities` fields from `UnifyState` (created after
       -- the conclusion of a constructor has been unified with the top-level arguments to the inductive relation),
       -- convert them to the appropriate `ScheduleStep`s, and prepends them to the `naiveSchedule`
-      pure $ addConclusionPatternsAndEqualitiesToSchedule finalState.patterns finalState.equalities (updatedNaiveSchedule, scheduleSort))
+      pure $ addConclusionPatternsAndEqualitiesToSchedule finalState.patterns finalState.equalities (updatedBestSchedule, scheduleSort))
   )
 
 

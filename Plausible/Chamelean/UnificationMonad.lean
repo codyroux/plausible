@@ -348,11 +348,11 @@ def findUnknownsWithUndefRanges (unknowns : List Unknown) : UnifyM (List Unknown
     | .Undef _ => return (u :: acc)
     | _ => return acc) [] unknowns
 
-  /-- Updates the `constraint` map so that for each `u ∈ unknowns`,
-      we have the binding `u ↦ Fixed` in the `UnknownMap` `constraints`
-      - Note: this doesn't handle chains of `Unknown`s in `constraints` -/
+/-- Updates the `constraint` map so that for each `u ∈ unknowns`,
+    we have the binding `u ↦ Fixed` in the `UnknownMap` `constraints`
+    - Note: this doesn't handle chains of `Unknown`s in `constraints` -/
 def fixRanges (unknowns : List Unknown) : UnifyM Unit := do
-  updateMany (unknowns.map (fun u => (u,.Fixed)))
+  updateMany (unknowns.map (fun u => (u, .Fixed)))
 
 /-- `fixRangeHandleUnknownChains u` updates the `constraint` map
     so that we have the binding `u ↦ Fixed` in the `UnknownMap` `constraints`

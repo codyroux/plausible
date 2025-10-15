@@ -82,7 +82,10 @@ def mkMatchExprWithScrutineeTerm (scrutinee : TSyntax `term) (cases : TSyntaxArr
 def mkDoElemMatchExpr (scrutinee : TSyntax `term) (cases : TSyntaxArray ``Term.matchAlt) : MetaM (TSyntax `doElem) :=
   `(doElem| match $scrutinee:term with $cases:matchAlt*)
 
+/-- Converts a `Literal`, the datatype used to store `Nat` and `String` literals in `Lean.Expr` into the corresponding literal `TSyntax`.
+    Note, the `Nat` literal will be wrapped in an `OfNat.ofNat` call.
+-/
 def mkLiteral (l : Literal) : MetaM (TSyntax `term) :=
   match l with
-  | .natVal n => `($(Syntax.mkNumLit (toString n)))
+  | .natVal n => `($(Syntax.mkNatLit n))
   | .strVal s => `($(Syntax.mkStrLit s))

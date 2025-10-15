@@ -316,5 +316,7 @@ set_option maxHeartbeats 2000000
 -- -- #guard_msgs(drop info, drop warning) in
 -- #derive_generator (fun (t : _) => HasType a v ex t)
 
--- #guard_msgs(drop info, drop warning) in
--- #derive_generator (fun (ex : (CedarExpr × PathSet)) => HasType a v ex t)
+#derive_generator (fun (T : _) => BindAttrType ns (TE, F, true) T)
+
+#guard_msgs(drop warning) in
+#derive_generator (fun (ex : (CedarExpr × PathSet)) => HasType a v ex t)
