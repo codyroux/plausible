@@ -258,7 +258,7 @@ private def subsetsAndComplements {α} (as : List α) : LazyList (List α × Lis
   | [] => pure ([],[])
   | a :: as' => do
     let (subset,comp) ← subsetsAndComplements as'
-    .lcons (a :: subset,comp) ⟨ fun _ => .lcons (subset,a :: comp) ⟨fun _ => .lnil⟩⟩
+    .lcons (a :: subset, comp) ⟨ fun _ => .lcons (subset, a :: comp) ⟨fun _ => .lnil⟩⟩
 
 /- Unused utility function for future if we wish to prune selections of hypotheses by some predicate -/
 private def subsetsAndComplementsSuchThat {α} (p : α -> Bool) (as : List α) : LazyList (List α × List α) :=
@@ -316,6 +316,8 @@ private def constructHypothesis (hyp : HypothesisExpr × List (List Name)) : Hyp
   let hypIndices := List.zip hyp.fst.snd hyp.snd
   let (mustBind, allSafe) := hypIndices.partition (fun (ctrExpr, vars) =>
     containsFunctionCall ctrExpr || (vars.any (List.contains repeatedNames)))
+  -- Any variables that appear multiple times in a hypothesis will end up in mustBind the same number of times, so we must deduplicate
+  -- to avoid instantiating it multiple times.
   (hyp.fst, allSafe.map (fun x => x.snd), (List.eraseDups mustBind).flatMap (fun x => x.snd))
 
 private def needs_checking {α v} [BEq v] (env : List v) (a_vars : α × List (List v) × List v) : Bool :=
@@ -516,7 +518,7 @@ private partial def enumSchedules {α v} [BEq v] (vars : List v) (hyps : List (�
 #eval (enumSchedules [`n, `m] [(`n_le_m, [], [`n, `m])] [`n,`m]).take 5
 
 /--
-enumSchedules is a variant of enumSchedules where instead of taking a list of hypotheses to permute,
+`enumSchedules'` is a variant of `enumSchedules` where instead of taking a list of hypotheses to permute,
 it takes a list of simply connected components of hypotheses based on reachability in the graph
 where an edge between hypotheses exists iff their variable sets overlap. It then permutes
 only hypotheses within components but not between components. The different components are kept

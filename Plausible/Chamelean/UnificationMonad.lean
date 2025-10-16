@@ -566,7 +566,8 @@ mutual
       handleMatch u (.Lit l)
     | (_, .Lit l), (u, .Fixed) =>
       handleMatch u (.Lit l)
-    | (_u,r), (_u',r') => throwError m!"unifyC: unable to unify {r}, {r'} when one is a constructor and the other is a literal."
+    | (_u1, .Lit l), (_u2, c@(.Ctor _ _)) => throwError m!"unifyC: unable to unify literal {repr l} with constructor {c}"
+    | (_u1, c@(.Ctor _ _)), (_u2, .Lit l) => throwError m!"unifyC: unable to unify constructor {c} with literal {repr l}"
 
   partial def unifyL (l l' : Literal) : UnifyM Unit :=
     if l == l' then
