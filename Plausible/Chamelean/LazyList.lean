@@ -168,6 +168,7 @@ def lazySeq (s : α → α) (lo : α) (len : Nat) : LazyList α :=
     | .succ remaining' => .lcons current (Thunk.mk $ fun _ => go (s current) remaining')
   go lo len
 
+/-- Creates a lazy sequence from 0 to n built lazily. -/
 def range (n : Nat) : LazyList Nat :=
   lazySeq .succ .zero n
 

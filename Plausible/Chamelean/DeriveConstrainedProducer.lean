@@ -157,8 +157,7 @@ partial def convertExprToRangeInCurrentContext (e : Expr) : UnifyM Range := do
       match e with
       | .const u _ => return (.Unknown u)
       | .lit literal => return .Lit literal
-      | _ => return .Fixed
-      -- | _ => throwError m!"Cannot convert expression {e} to Range"
+      | _ => throwError m!"Cannot convert expression {e} to Range"
 
 /-- Converts a hypothesis (reprented as a `TSyntax term`) to a `Range` -/
 partial def convertHypothesisTermToRange (term : TSyntax `term) : UnifyM Range := do
@@ -383,7 +382,7 @@ def getScheduleForInductiveRelationConstructor
           try convertHypothesisTermToRange hypTerm
           catch _ => convertExprToRangeInCurrentContext hyp
 
-        -- Convert each hypotahesis' range to a `HypothesisExpr`, which is just a constructor application
+        -- Convert each hypothesis' range to a `HypothesisExpr`, which is just a constructor application
         -- (constructor name applied to some list of arguments, which are themselves `ConstructorExpr`s)
         hypothesisExprs := hypothesisExprs.push (← convertRangeToCtorAppForm hypRange)
 
