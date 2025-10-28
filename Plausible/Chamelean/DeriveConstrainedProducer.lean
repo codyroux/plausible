@@ -157,7 +157,8 @@ partial def convertExprToRangeInCurrentContext (e : Expr) : UnifyM Range := do
       match e with
       | .const u _ => return (.Unknown u)
       | .lit literal => return .Lit literal
-      | _ => throwError m!"Cannot convert expression {e} to Range"
+      | _ => return .Fixed
+      -- | _ => throwError m!"Cannot convert expression {e} to Range"
 
 /-- Converts a hypothesis (reprented as a `TSyntax term`) to a `Range` -/
 partial def convertHypothesisTermToRange (term : TSyntax `term) : UnifyM Range := do
@@ -382,7 +383,7 @@ def getScheduleForInductiveRelationConstructor
           try convertHypothesisTermToRange hypTerm
           catch _ => convertExprToRangeInCurrentContext hyp
 
-        -- Convert each hypothesis' range to a `HypothesisExpr`, which is just a constructor application
+        -- Convert each hypotahesis' range to a `HypothesisExpr`, which is just a constructor application
         -- (constructor name applied to some list of arguments, which are themselves `ConstructorExpr`s)
         hypothesisExprs := hypothesisExprs.push (← convertRangeToCtorAppForm hypRange)
 
@@ -484,6 +485,8 @@ def getScheduleForInductiveRelationConstructor
 
       let prefixSize := 100000
 
+      trace[plausible.deriving.arbitrary] m!"First Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length: {(minChecks, minLen)} \nSchedules Considered: {repr countSeen}"
+
       for schdM in LazyList.take prefixSize rest.get do
         let schd ← schdM
         let checkCount := countChecks schd
@@ -493,6 +496,8 @@ def getScheduleForInductiveRelationConstructor
           bestSchedule := schd
           minChecks := checkCount
           minLen := len
+          trace[plausible.deriving.arbitrary] m!"Better Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length: {(minChecks, minLen)} \nSchedules Considered: {repr countSeen}"
+
 
       trace[plausible.deriving.arbitrary] m!"Chosen Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length: {(minChecks, minLen)} \nSchedules Considered: {repr countSeen}"
 
