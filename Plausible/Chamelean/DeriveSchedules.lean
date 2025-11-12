@@ -825,7 +825,7 @@ private def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisE
       (fun v =>
         match v with
         | .TVar v => do
-          let typ ← exprToConstructorExpr' v.type
+          let typ ← exprToConstructorExpr v.type
           pure (v.var, some typ)
         | .UVar n =>
           pure (n, none)
@@ -843,7 +843,7 @@ private def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisE
     let (ctorName, ctorArgs) := ty.getAppFnArgs
     let src ←
       if ctorName == Prod.fst env.recCall
-        then Source.Rec (recursiveFunctionName env.deriveSort) <$> ctorArgs.toList.mapM (fun foo => exprToConstructorExpr' foo)
+        then Source.Rec (recursiveFunctionName env.deriveSort) <$> ctorArgs.toList.mapM (fun foo => exprToConstructorExpr foo)
       else
         let hypothesisExpr ← exprToHypothesisExpr ty
         pure (Source.NonRec hypothesisExpr)

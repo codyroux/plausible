@@ -185,27 +185,6 @@ partial def convertHypothesisTermToRange (term : TSyntax `term) : UnifyM Range :
       return (.Unknown name)
   | _ => throwError m!"unable to convert {term} to a Range"
 
-/-- Converts an `Expr` to a `ConstructorExpr` -/
-partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
-  match e with
-  | .fvar fvarId => do
-    let localCtx ← getLCtx
-    match localCtx.findFVar? e with
-    | some localDecl => return (.Unknown localDecl.userName)
-    | none => return (.Unknown (.str `fvar fvarId.name.toString))
-  | .const name _ => return (.FuncApp name [])
-  | .lit literal => return (.Lit literal)
-  | .app .. => do
-    let (fn, args) := e.getAppFnArgs
-    let argExprs ← args.toList.mapM exprToConstructorExpr
-    let constInfo ← getConstInfo fn
-    if constInfo.isCtor then
-      return (.Ctor fn argExprs)
-    else
-      return (.FuncApp fn argExprs)
-  | _ => throwError m!"Unable to convert {e} to a constructor expr"
-
-
 /-- Converts a `Pattern` to a `TSyntax term` -/
 def convertPatternToTerm (pattern : Pattern) : MetaM (TSyntax `term) :=
   match pattern with

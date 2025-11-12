@@ -134,7 +134,7 @@ def hypothesisExprToTSyntaxTerm (hypExpr : HypothesisExpr) : MetaM (TSyntax `ter
   `($(mkIdent ctorName) $ctorArgTerms:term*)
 
 /-- Converts an `Expr` to a `ConstructorExpr` -/
-partial def exprToConstructorExpr' (e : Expr) : MetaM ConstructorExpr := do
+partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
   match e with
   | .fvar id =>
     let localDecl ← FVarId.getDecl id
@@ -149,8 +149,8 @@ partial def exprToConstructorExpr' (e : Expr) : MetaM ConstructorExpr := do
     else
       return .FuncApp name []
   | .app f arg => do
-    let fExpr ← exprToConstructorExpr' f
-    let argExpr ← exprToConstructorExpr' arg
+    let fExpr ← exprToConstructorExpr f
+    let argExpr ← exprToConstructorExpr arg
     match fExpr with
     | .TyCtor name args =>
       return .TyCtor name (args ++ [argExpr])
@@ -178,10 +178,10 @@ def exprToHypothesisExpr (e : Expr) : MetaM HypothesisExpr := do
 
     -- Only proceed if `ctorName` refers to a constructor
     if env.isConstructor ctorName || (← isInductive ctorName) then
-      let constructorArgs ← args.mapM exprToConstructorExpr'
+      let constructorArgs ← args.mapM exprToConstructorExpr
       return (ctorName, constructorArgs.toList)
     else
-      let constructorArgs ← args.mapM exprToConstructorExpr'
+      let constructorArgs ← args.mapM exprToConstructorExpr
       return (ctorName, constructorArgs.toList)
   else if e.isFVar then
     let name ← e.fvarId!.getUserName
