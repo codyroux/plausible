@@ -48,7 +48,7 @@ for the desired generated values and provide some Nat to act as the generator's 
 To view the code for the derived generator, users can enable trace messages using the `plausible.deriving.arbitrary` trace class as follows:
 
 ```lean
-set_option trace.plausible.deriving.arbitrary true
+
 ```
 
 ## Main definitions
