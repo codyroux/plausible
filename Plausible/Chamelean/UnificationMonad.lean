@@ -71,10 +71,8 @@ inductive ConstructorExpr
 partial def constructorExprToExpr (ctorExpr : ConstructorExpr) : Expr :=
   match ctorExpr with
   | .Unknown name => mkConst name
-  | .Ctor ctorName ctorArgs | .TyCtor ctorName ctorArgs =>
+  | .Ctor ctorName ctorArgs | .TyCtor ctorName ctorArgs | .FuncApp ctorName ctorArgs =>
     mkAppN (mkConst ctorName) (constructorExprToExpr <$> ctorArgs.toArray)
-  | .FuncApp funcName ctorArgs =>
-    mkAppN (mkConst funcName) (constructorExprToExpr <$> ctorArgs.toArray)
   | .Lit l => .lit l
 
 

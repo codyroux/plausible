@@ -378,7 +378,6 @@ mutual
       let typedArgs := List.zip args argTyExprs
       let argsTuple ← mkTuple typedArgs
       let propBody ← delabMexpAsExpr prop
-      -- mexpToTSyntax prop .Generator
       let typeClassName :=
         match prodSort with
         | .Enumerator => ``EnumSizedSuchThat

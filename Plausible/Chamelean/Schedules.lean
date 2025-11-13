@@ -175,14 +175,9 @@ def exprToHypothesisExpr (e : Expr) : MetaM HypothesisExpr := do
   if e.isApp || e.isConst then
     let (ctorName, args) := e.getAppFnArgs
     let env ← getEnv
-
-    -- Only proceed if `ctorName` refers to a constructor
-    if env.isConstructor ctorName || (← isInductive ctorName) then
-      let constructorArgs ← args.mapM exprToConstructorExpr
-      return (ctorName, constructorArgs.toList)
-    else
-      let constructorArgs ← args.mapM exprToConstructorExpr
-      return (ctorName, constructorArgs.toList)
+    if env.isConstructor ctorName then throwError m!"exprToHypothesisExpr: Expr {e} cannot have head term {ctorName} which is a constructor. Must be a function or inductive"
+    let constructorArgs ← args.mapM exprToConstructorExpr
+    return (ctorName, constructorArgs.toList)
   else if e.isFVar then
     let name ← e.fvarId!.getUserName
     return (name, [])
@@ -260,8 +255,8 @@ def updateScheduleSteps (scheduleSteps : List ScheduleStep) : UnifyM (List Sched
 def addConclusionPatternsAndEqualitiesToSchedule (patterns : List (Unknown × Pattern)) (equalities : Std.HashSet (Unknown × Unknown)) (currentSchedule : Schedule) : Schedule :=
   let (existingScheduleSteps, scheduleSort) := currentSchedule
   let matchSteps := (Function.uncurry (ScheduleStep.Match .allowImplicit)) <$> patterns
+  -- We should never have an equality here. Assertion after unification should handle that though.
   let equalityCheckSteps := (fun (u1, u2) => ScheduleStep.Check (Source.NonRec (``Eq, [.Unknown u1, .Unknown u2])) true) <$> equalities.toList
-  -- equalities.toList
   (matchSteps ++ equalityCheckSteps ++ existingScheduleSteps, scheduleSort)
 
 end Schedules

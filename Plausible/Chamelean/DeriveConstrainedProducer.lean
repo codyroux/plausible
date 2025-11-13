@@ -31,7 +31,7 @@ open Idents Schedules
 def mkInitialUnknownMap (inputNames: List Name)
   (outputName : Name) (outputType : Expr)
   (forAllVariables : List (Name × Expr)) : UnknownMap :=
-  let inputConstraints := inputNames.map (fun n => (n,.Fixed))
+  let inputConstraints := inputNames.map (fun n => (n, .Fixed))
   let outputConstraints := [(outputName, .Undef outputType)]
   let filteredForAllVariables := forAllVariables.filter (fun (x, _) => x ∉ inputNames)
   let forAllVarsConstraints := (fun (x, ty) => (x, .Undef ty)) <$> filteredForAllVariables
@@ -265,7 +265,7 @@ def linearizeAndFlatten
   (hypotheses : Array Expr) (conclusion : Expr) (outputIndex : Option Nat) (localCtx : LocalContext) :
   UnifyM (Array Expr × Expr × List (Name × Expr) × LocalContext) := do
   -- Find all sub-terms which are non-trivial function applications
-  let funcAppExprs ← collectFunctionConstrainedProperSubterms conclusion
+  let funcAppExprs ← collectUnmatchableProperSubterms conclusion
 
   withLCtx' localCtx do
 
@@ -345,8 +345,32 @@ def linearizeAndFlatten
     )
   )
 
+structure ScheduleScore where
+  checks : Nat
+  length : Nat
+  unconstrained : Nat
+  deriving Ord, Repr
 
+def scheduleStepsScore (schedule : List ScheduleStep) : ScheduleScore :=
+  let steps := schedule
+  Id.run do
+    let mut checks := 0
+    let mut length := 0
+    let mut unconstrained := 0
+    for step in steps do
+      length := length + 1
+      match step with
+      | .Check .. => checks := checks + 1
+      | .Unconstrained .. => unconstrained := unconstrained + 1
+      | _ => ()
+    ⟨checks, length, unconstrained⟩
 
+instance scheduleStepsScoreLT : LT ScheduleScore := ⟨fun a b => compare a b |>.isLT⟩
+
+instance scheduleScoreLTDecidable {a b : ScheduleScore} : Decidable (a < b) :=
+  decidable_of_bool ((compare a b).isLT) (by simp [scheduleStepsScoreLT])
+
+def scheduleLT (a b : List ScheduleStep) := scheduleStepsScore a < scheduleStepsScore b
 
 /-- Unifies each argument in the conclusion of an inductive relation with the top-level arguments to the relation
     (using the unification algorithm from Generating Good Generations),
@@ -486,7 +510,7 @@ def getScheduleForInductiveRelationConstructor
       -- Check which universally-quantified variables have a `Fixed` range,
       -- so that we can supply them to `possibleSchedules` as the `fixedVars` arg
 
-      let updatedForAllVars := (forAllVars ++ freshNamesAndTypes)
+      let updatedForAllVars := forAllVars ++ freshNamesAndTypes
       let fixedVars ← updatedForAllVars.filterMapM (fun (v, _) => do
         if (← UnifyM.isUnknownFixed v) then
           return some v
@@ -513,37 +537,25 @@ def getScheduleForInductiveRelationConstructor
 
       let fstSchd ← fstSchdM
 
-      let countChecks (schd : List ScheduleStep) : Nat :=
-        schd.foldl (fun acc step => match step with | .Check _ _ => acc + 1 | _ => acc) 0
-
-      let countUnconstrained (schd : List ScheduleStep) : Nat :=
-        schd.foldl (fun acc step => match step with | .Unconstrained .. => acc + 1 | _ => acc) 0
-
-      let mut minChecks := countChecks fstSchd
-      let mut minUnconstrained := countUnconstrained fstSchd
       let mut countSeen  := 1
-      let mut minLen     := fstSchd.length
+      let mut bestScore := scheduleStepsScore fstSchd
       let mut bestSchedule   := fstSchd
 
       let prefixSize := 100000
 
-      trace[plausible.deriving.arbitrary] m!"First Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length & Unconstrained: {(minChecks, minLen, minUnconstrained)} \nSchedules Considered: {repr countSeen}"
+      trace[plausible.deriving.arbitrary] m!"First Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}"
 
       for schdM in LazyList.take prefixSize rest.get do
         let schd ← schdM
-        let checkCount := countChecks schd
-        let unconstrained := countUnconstrained schd
+        let score := scheduleStepsScore schd
         countSeen := countSeen + 1
-        let len := schd.length
-        if checkCount < minChecks || (checkCount == minChecks && len < minLen) || (checkCount == minChecks && len == minLen && unconstrained < minUnconstrained) then
+        if score < bestScore then
           bestSchedule := schd
-          minChecks := checkCount
-          minUnconstrained := unconstrained
-          minLen := len
-          trace[plausible.deriving.arbitrary] m!"Better Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length & Unconstrained: {(minChecks, minLen, minUnconstrained)} \nSchedules Considered: {repr countSeen}"
+          bestScore := score
+          trace[plausible.deriving.arbitrary] m!"Better Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}"
 
 
-      trace[plausible.deriving.arbitrary] m!"Chosen Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length & Unconstrained: {(minChecks, minLen, minUnconstrained)} \nSchedules Considered: {repr countSeen}"
+      trace[plausible.deriving.arbitrary] m!"Chosen Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}"
 
       -- Update the best schedule with the result of unification
       let updatedBestSchedule ← updateScheduleSteps bestSchedule

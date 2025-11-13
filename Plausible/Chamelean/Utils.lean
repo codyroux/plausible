@@ -221,13 +221,13 @@ partial def collectFVarOccurrences (e : Expr) (skipArgIndex : Option Nat := none
     | .app f arg =>
       if isTopLevel then
         -- Handle top-level application with potential argument skipping
-        let (_, args) := expr.getAppFnArgs
-        let fnAcc := acc
-        foldlWithIndex (fun arg i acc =>
-          match skipArgIndex with
-          | some skipIdx => if i == skipIdx then acc else aux arg acc false
-          | none => aux arg acc false
-        ) fnAcc args.toList
+        let args := expr.getAppArgs
+        Id.run do
+          let mut result := acc
+          for h : i in [:args.size] do
+            if some i != skipArgIndex then
+              result := aux args[i] result false
+          result
       else
         aux arg (aux f acc false) false
     | .lam _ domain body _ => aux body (aux domain acc false) false
@@ -238,24 +238,31 @@ partial def collectFVarOccurrences (e : Expr) (skipArgIndex : Option Nat := none
     | _ => acc
   aux e {} true
 
-partial def collectFunctionConstrainedSubterms (e : Expr) : MetaM (List Expr) :=
+/-`collectUnmatchableSubterms` traverses an expression from top down until it finds anything except a constructor application
+or a variable or an inductive. It collects all such subterms. These subterms we cannot match on during unifications so we
+turn them later into equality constraints. -/
+partial def collectUnmatchableSubterms (e : Expr) : MetaM (List Expr) :=
   match e with
-  | .app .. => do
+  | .app .. | .const .. => do
     let (f, args) := e.getAppFnArgs
     let inf ← getConstInfo f
     if inf.isDefinition then
       return [e]
     else
-      args.foldlM (fun acc arg => (· ++ acc) <$> collectFunctionConstrainedSubterms arg) []
-  | _ => return []
+      args.foldlM (fun acc arg => (· ++ acc) <$> collectUnmatchableSubterms arg) []
+  | .fvar .. => return []
+  | _ => return [e] -- If it is not an application or a const, it is also not matchable, so we
+                    -- should also flatten it out.
 
-partial def collectFunctionConstrainedProperSubterms (e : Expr) : MetaM (List Expr) :=
+/-`collectUnmatchableProperSubterms` traverses an expression from top down (ignoring the head, which is a hypothesis that does not need to be
+matched on) until it finds anything except a constructor application or a variable or an inductive. It collects all such subterms. These
+subterms we cannot match on during unifications so we turn them later into equality constraints.-/
+partial def collectUnmatchableProperSubterms (e : Expr) : MetaM (List Expr) :=
   match e with
   | .app .. => do
     let args := e.getAppArgs
-    args.foldlM (fun acc arg => (· ++ acc) <$> collectFunctionConstrainedSubterms arg) []
+    args.foldlM (fun acc arg => (· ++ acc) <$> collectUnmatchableSubterms arg) []
   | _ => return []
-
 
 /-- Looks up a key in a list and returns the value along with the list without that entry -/
 def lookupAndRemove [BEq α] (key : α) (list : List (α × β)) : Option (β × List (α × β)) :=

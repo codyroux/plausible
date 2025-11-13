@@ -472,7 +472,7 @@ the schedules. -/
    The snd and third elements combined should equal the set vars(hyp.fst)
 -/
 
-private partial def enumSchedules {α v} [BEq v] [Repr v] [Repr α] (vars : List v) (hyps : List (α × List (List v) × List v)) (env : List v)
+private partial def enumSchedules {α v} [BEq v] (vars : List v) (hyps : List (α × List (List v) × List v)) (env : List v)
   : LazyList (List (PreScheduleStep α v)) :=
   match hyps with
   | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
@@ -527,8 +527,8 @@ private partial def enumSchedules {α v} [BEq v] [Repr v] [Repr α] (vars : List
 #eval (enumSchedules (List.range 14) [("A",[[1],[2],[3],[4],[5]],[]), ("B",[[3],[4],[5],[6],[7]],[]), ("C",[[5],[6],[7],[8],[9]],[]),
                        ("D",[[7],[8],[9],[10],[11],[3],[1],[2]],[]), ("E",[[9],[10],[11],[12],[13]],[])] []).take 100
 
--- #guard_msgs(error, drop info) in
--- #eval (@enumSchedules String Nat _ [] [] [])
+#guard_msgs(error, drop info) in
+#eval (@enumSchedules String Nat _ [] [] [])
 
 -- Example for BetweenN constructor:
 -- BetweenN : ∀ n m, n <= m -> Between n (.succ n) (.succ (.succ m))
