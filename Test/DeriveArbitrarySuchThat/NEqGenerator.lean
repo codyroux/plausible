@@ -8,8 +8,6 @@ import Plausible.Attr
 open Plausible
 open ArbitrarySizedSuchThat
 
-set_option guard_msgs.diff true
-
 def ConstTrue (_ : Prop) := True
 
 inductive usesNeq : Nat → Prop where
@@ -69,7 +67,7 @@ derive_generator fun α b => ∃ a, Diag α a b
 
 
 inductive usesVec : _ → Prop where
-| c {a b : Nat} : a ≠ b → usesVec #v[a,b,a]
+| c {a b : Nat} : usesVec #v[a,b,a]
 
 #guard_msgs(drop error, drop info, whitespace := lax) in
 derive_generator ∃ a, usesVec a
