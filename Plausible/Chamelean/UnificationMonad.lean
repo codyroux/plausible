@@ -64,6 +64,7 @@ inductive ConstructorExpr
   | Ctor : Name → List ConstructorExpr → ConstructorExpr
   | FuncApp : Name → List ConstructorExpr → ConstructorExpr
   | TyCtor : Name → List ConstructorExpr → ConstructorExpr
+  /- A TyCtor is an inductive family applied to arguments. Used for instance in Prod.mk which requires two types as arguments. -/
   | Lit : Literal → ConstructorExpr
   deriving Repr, BEq, Inhabited, Ord
 
