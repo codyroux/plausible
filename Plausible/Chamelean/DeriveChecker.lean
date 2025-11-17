@@ -1,7 +1,6 @@
 import Lean
 
 import Plausible.Chamelean.MakeConstrainedProducerInstance
-import Plausible.Chamelean.Enumerators
 import Plausible.Chamelean.DeriveConstrainedProducer
 import Plausible.Chamelean.Idents
 import Plausible.Chamelean.DecOpt

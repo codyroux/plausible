@@ -21,9 +21,10 @@ def parseInductiveApp (body : Term) :
     return (indRel, #[])
   | _ => throwErrorAt body "Expected inductive type application"
 
+/-- Instantiates a known-to-be well-typed call to inductive with array of arguments `es` one
+    at a time and infers each arguments type, so renamings and dependent types are supported.
+    Returns the array of types for each argument in `es`. -/
 def getCorrectTypes (es : Array Expr) (ind : Name) (inductiveLevels : List Level) : TermElabM (Array Expr) := do
-  let _inductInfo ← getConstInfoInduct ind
-  -- TODO: deal with these mvars
   trace[plausible.deriving.arbitrary] m!"Levels for inductive {ind}: {inductiveLevels}"
   let mut t : Expr := .const ind inductiveLevels
   let mut tys : Array Expr := #[]
@@ -160,10 +161,8 @@ def mkConstrainedProducerTypeClassInstance
       | .Generator => mkFreshAccessibleIdent topLevelLocalCtx `aux_arb
       | .Enumerator => mkFreshAccessibleIdent topLevelLocalCtx `aux_enum
 
-    -- Build the syntax for the target type
-    -- Sadly, the delaborator may very well fail to produce a
-    -- syntactically correct term.
-    -- let targetTypeSyntax ← PrettyPrinter.delab targetType
+    -- Get the syntax for the target type, it must exist!
+    assert! outputType != none
     let targetTypeSyntax := outputType.get!
 
     -- Determine the appropriate type of the final producer
