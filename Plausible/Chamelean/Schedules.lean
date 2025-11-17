@@ -195,32 +195,7 @@ def updateNonRecSource (k : UnknownMap) (hyp : HypothesisExpr) : UnifyM Source :
 def updateSource (k : UnknownMap) (src : Source) : UnifyM Source := do
   match src with
   | .NonRec hyp => do
-    -- let hypExpr := toExpr hyp
-
-    -- -- To do so, we first extract the constructor in the hypothesis
-    -- -- and see if it corresponds to a type constructor for a parameterized type `inductive` type (e.g. `List`)
-    -- -- If yes, we can just return the source as is, since the source is just the name of a type
-    -- let (ctor, _) := hypExpr.getAppFnArgs
-
-    -- try (do
-    --   -- Determine the return type of the constructor in the hypothesis
-    --   let inductiveVal ← getConstInfoInduct ctor
-    --   let ctorTy := inductiveVal.type
-    --   let returnType ← Array.back! <$> getComponentsOfArrowType ctorTy
-    --   -- If the return type is *not* `Prop`, then the `Source` is
-    --   -- a generator for some inductive type (as opposed to an inductive `Prop`),
-    --   -- so we don't need to update the source
-    --   if (not returnType.isProp) then
-    --     pure src
-    --   else
-    --     updateNonRecSource k hyp)
-    -- catch _ =>
-    --   -- `ctor` is not an inductive type (calling Lean's `getConstInfoInduct` function raised an exception)
-    --   -- This means we have a hypothesis which is *not* an application of some inductive type/proposition,
-    --   -- i.e. we can just update the variables in the `hyp` w/ the result of unification
-    --   trace[plausible.deriving.arbitrary] m!"Non rec non ind hyp: {hyp}"
-      updateNonRecSource k hyp
-
+    updateNonRecSource k hyp
   | .Rec r tys => do
     let updatedTys ← List.mapM (UnifyM.updateConstructorArg k) tys
     return .Rec r updatedTys

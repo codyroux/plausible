@@ -79,7 +79,7 @@ def mkConstrainedProducerTypeClassInstance
   (inductiveName : Name)
   (inductiveLevels : List Level)
   (args : TSyntaxArray `term) (targetVar : Name)
-  (targetType : Expr)
+  (_targetType : Expr)
   (producerSort : ProducerSort)
   (topLevelLocalCtx : LocalContext) : TermElabM (TSyntax `command) := do
     -- Produce a fresh name for the `size` argument for the lambda
