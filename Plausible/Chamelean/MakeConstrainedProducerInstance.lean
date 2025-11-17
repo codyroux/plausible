@@ -1,6 +1,7 @@
 import Lean
 import Std
 import Plausible.Gen
+import Plausible.Chamelean.Enumerators
 import Plausible.Chamelean.GeneratorCombinators
 import Plausible.Chamelean.TSyntaxCombinators
 import Plausible.Chamelean.Idents
@@ -172,7 +173,12 @@ def mkConstrainedProducerTypeClassInstance
       | .Generator => `($genTypeConstructor $targetTypeSyntax)
       | .Enumerator => `($exceptTTypeConstructor $genErrorType $enumTypeConstructor $targetTypeSyntax)
 
-    let arbitraryTypeParamInstances ← mkTypeClassInstanceBinders typeParams #[``Plausible.Arbitrary, ``DecidableEq]
+    let producerUnconstrainedClass :=
+      match producerSort with
+      | .Generator => ``Plausible.Arbitrary
+      | .Enumerator => ``Enum
+
+    let arbitraryTypeParamInstances ← mkTypeClassInstanceBinders typeParams #[producerUnconstrainedClass, ``DecidableEq]
 
     -- Produce an instance of the appropriate typeclass containing the definition for the derived producer
     `(instance $arbitraryTypeParamInstances:bracketedBinder* : $producerTypeClass $targetTypeSyntax (fun $(mkIdent targetVar) => @$(mkIdent inductiveName) $args*) where

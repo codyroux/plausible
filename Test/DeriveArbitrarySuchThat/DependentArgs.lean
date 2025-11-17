@@ -35,6 +35,9 @@ derive_generator (fun α inst => ∃ n, @HasClassDep α inst n)
 #guard_msgs(error, drop warning, drop info) in
 derive_checker fun α inst n => @HasClassDep α inst n
 
+#guard_msgs(drop info, error) in
+derive_enumerator (fun α inst => ∃ n, @HasClassDep α inst n)
+
 def f : Nat → Nat := fun _ => 0
 
 inductive HasCall : Nat → Prop where
@@ -42,3 +45,6 @@ inductive HasCall : Nat → Prop where
 
 #guard_msgs(error, whitespace:=lax, drop info) in
 derive_generator ∃ n, HasCall n
+
+#guard_msgs(error, whitespace:=lax, drop info) in
+derive_enumerator ∃ n, HasCall n
