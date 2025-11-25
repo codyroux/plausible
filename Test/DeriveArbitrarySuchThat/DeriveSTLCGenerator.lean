@@ -19,8 +19,8 @@ derive_generator (fun Γ x => ∃ (τ : type), lookup Γ x τ)
 
 #guard_msgs(drop info, drop warning) in
 derive_generator (fun G e => ∃ (t : type), typing G e t)
-
-#guard_msgs(drop info, drop warning) in
+set_option trace.plausible.deriving.results true in
+#guard_msgs( drop warning) in
 derive_generator (fun G t => ∃ (e : term), typing G e t)
 
 -- To sample from this generator and print out 10 successful examples using the `Repr`

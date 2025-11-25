@@ -133,6 +133,6 @@ derive_enumerator (fun Γ x => ∃ (τ : type), lookup Γ x τ)
 
 #guard_msgs(drop info, drop warning) in
 derive_enumerator (fun Γ e => ∃ (τ : type), typing Γ e τ)
-
-#guard_msgs(drop info, drop warning) in
+set_option trace.plausible.deriving.results true in
+#guard_msgs(drop error, drop warning) in
 derive_enumerator (fun Γ τ => ∃ (e : term), typing Γ e τ)

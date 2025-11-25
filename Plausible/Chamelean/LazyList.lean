@@ -172,4 +172,57 @@ def lazySeq (s : α → α) (lo : α) (len : Nat) : LazyList α :=
 def range (n : Nat) : LazyList Nat :=
   lazySeq .succ .zero n
 
+/-- ForIn instance for LazyList -/
+instance [Monad m] : ForIn m (LazyList α) α where
+  forIn l init f := go l init f
+    where
+      go {β} (l : LazyList α) (acc : β) (f : α → β → m (ForInStep β)) : m β := do
+        match l with
+        | .lnil => return acc
+        | .lcons a l' => do
+          match ← (f a acc) with
+          | ForInStep.done b' => return b'
+          | .yield b' =>
+            go l'.get b' f
+
+
+-- Test ForIn laziness with a huge list that would timeout if evaluated eagerly
+def hugeList := range 10000000000
+
+def lazyForInTest : IO Nat := do
+  let mut b := 1
+  for x in hugeList do
+    if x > 7 then break
+    b := b * (x + 1)
+  return b
+
+#eval lazyForInTest  -- Should return quickly: 40320
+
+-- Test that proves ForIn is lazy by using an infinite-like computation
+def infiniteTest : IO String := do
+  let mut result := ""
+  for x in hugeList do
+    if x > 3 then break
+    result := result ++ s!"{x},"
+  return result
+
+#eval infiniteTest  -- Should return quickly: "0,1,2,3,"
+
+-- Lazy construction that defers computation
+def lazyFromRange (n : Nat) : LazyList String :=
+  let rec build (i : Nat) : LazyList String :=
+    if i >= n then .lnil
+    else .lcons s!"item{i}" ⟨fun _ => build (i + 1)⟩
+  build 0
+
+-- Test lazy ForIn that produces lazy output
+#eval do
+  let result : LazyList String := Id.run do
+    let mut acc : LazyList String := .lnil
+    for x in range 1000000 do
+      acc := .lcons s!"item{x}" ⟨fun _ => acc⟩
+    return acc
+  IO.println s!"First 3: {result.take 3}"
+  pure ()
+
 end LazyList
