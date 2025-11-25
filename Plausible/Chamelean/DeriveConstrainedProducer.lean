@@ -544,11 +544,8 @@ def getScheduleForInductiveRelationConstructor
       let mut bestScore := scheduleStepsScore fstSchd
       let mut bestSchedule   := fstSchd
 
-      let prefixSize := 1000
-
       trace[plausible.deriving.results] m!"First Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}\nSchedules Processed: {repr countProcessed}"
 
-      -- for schdM in LazyList.take prefixSize rest.get do
       for schdM in rest.get do
         let (schd, countSeen) ← schdM
         let score := scheduleStepsScore schd

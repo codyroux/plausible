@@ -185,29 +185,6 @@ instance [Monad m] : ForIn m (LazyList α) α where
           | .yield b' =>
             go l'.get b' f
 
-
--- Test ForIn laziness with a huge list that would timeout if evaluated eagerly
-def hugeList := range 10000000000
-
-def lazyForInTest : IO Nat := do
-  let mut b := 1
-  for x in hugeList do
-    if x > 7 then break
-    b := b * (x + 1)
-  return b
-
-#eval lazyForInTest  -- Should return quickly: 40320
-
--- Test that proves ForIn is lazy by using an infinite-like computation
-def infiniteTest : IO String := do
-  let mut result := ""
-  for x in hugeList do
-    if x > 3 then break
-    result := result ++ s!"{x},"
-  return result
-
-#eval infiniteTest  -- Should return quickly: "0,1,2,3,"
-
 -- Lazy construction that defers computation
 def lazyFromRange (n : Nat) : LazyList String :=
   let rec build (i : Nat) : LazyList String :=
@@ -216,6 +193,8 @@ def lazyFromRange (n : Nat) : LazyList String :=
   build 0
 
 -- Test lazy ForIn that produces lazy output
+/--info: First 3: [item999997, item999998, item999999]-/
+#guard_msgs in
 #eval do
   let result : LazyList String := Id.run do
     let mut acc : LazyList String := .lnil

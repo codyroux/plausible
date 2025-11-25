@@ -881,66 +881,6 @@ def sequentialFlatMap {α β s : Type} (l : LazyList α) (initialState : s) (f :
           drainResults subRest.get newState⟩
   go l initialState
 
-#eval LazyList.take 3 $ sequentialFlatMap (LazyList.range 10000000) 10 (fun a s => LazyList.lazySeq (fun (x,n) => (x,n + n)) (a,1) s)
-
-def appendThunk (l : LazyList α) (l't : Thunk (LazyList α)) : LazyList α :=
-  match l with
-  | .lnil => l't.get
-  | .lcons a as => .lcons a ⟨fun _ => appendThunk as.get l't⟩
-
-def sequentialFlatMap' {α β s : Type} (l : LazyList α) (initialState : s) (f : α → s → LazyList β × s) : LazyList β × s :=
-  Id.run do
-    let mut state := initialState
-    let mut list : LazyList β := .lnil
-    for a in l do
-      let (bs, state') := f a state
-      state := state'
-      list := list.append bs
-    (list, state)
-
-structure LazyListState (σ α : Type) : Type where
-  run : σ → Option (α ×  (LazyListState σ α)) × σ
-  deriving Nonempty, Inhabited
-
-def LazyListState.nil : LazyListState σ α := LazyListState.mk fun s => (.none, s)
-
-def LazyListState.cons (a : α) (l : (LazyListState σ α)) : LazyListState σ α :=
-  .mk fun s => (.some (a, l), s)
-
-partial def LazyListState.append (l : LazyListState σ α) (r : (LazyListState σ α)) : LazyListState σ α := .mk fun s =>
-  match l.run s with
-  | (.none, s') => r.run s'
-  | (.some (a, tl), s') =>
-    (.some (a, tl.append r), s')
-
-partial def LazyListState.bind {σ α β} [Inhabited σ] [Inhabited α] (ma : LazyListState σ α) (famb : α → LazyListState σ β) : LazyListState σ β :=
-  LazyListState.mk fun s =>
-    match ma.run s with
-    | (.none, s') => (.none, s')
-    | (.some (a, tl), s') =>
-      ((famb a).append (tl.bind famb)).run s'
-
--- instance {σ} [Inhabited σ] : Monad (LazyListState σ) where
---   pure a := .cons a ⟨fun _ => .nil⟩
---   bind := LazyListState.bind
-
-
--- instance {σ} : MonadStateOf σ (LazyListState σ) where
---   get := .mk fun s => (.some (s, ⟨fun _ => .nil⟩), s)
---   set newState := .mk fun _ => (.some ((), ⟨fun _ => .nil⟩), newState)
---   modifyGet f := .mk fun s =>
---     let (a, s') := f s
---     (.some (a, ⟨fun _ => .nil⟩), s')
-
--- -- Test the LazyListState monad
--- unsafe def testLazyListState : LazyListState Nat String := do
---   let x ← pure "hello"
---   let y ← pure "world"
---   pure (x ++ " " ++ y)
-
--- #eval testLazyListState.run 0 |>.snd
-
-
 -- Initialize worst possible score for branch and bound
 def initWorstScore (numHyps : Nat) : PreScheduleScore :=
   ⟨numHyps + 1, 0, 0⟩
@@ -959,9 +899,6 @@ def List.permutations {α : Type u} : List α → List (List α)
 private partial def enumSchedulesChunkedWithPruning {α v} [BEq v] [Repr α] [Repr v] [Hashable v] (vars : List v) (matchableVars : List v) (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v) (numHyps : Nat)
   : LazyList (List (PreScheduleStep α v)) :=
   let matchableSet := Std.HashSet.ofList matchableVars
-  dbg_trace vars.map fun v => s!"{repr v}"
-  let shouldDebug := s!"{repr vars}" == s!"{repr [`x, `ets, `acts, `R, `e, `n, `fn, `T] }"
-
   let rec go (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v) (sched : List (PreScheduleStep α v)) (numHypsRemaining : Nat) (bestScore : PreScheduleScore)
     : LazyList (List (PreScheduleStep α v) × PreScheduleScore) :=
     match hypComps with
@@ -1014,13 +951,13 @@ private partial def enumSchedulesChunkedWithPruning {α v} [BEq v] [Repr α] [Re
   let initialScore := initWorstScore numHyps
   go hypComps env [] numHyps initialScore |>.mapLazyList (fun (schd, _score) => schd)
 
+#guard_msgs(drop info) in
 #eval do
   -- Test 1: Deep dependency chain - all connected by shared variables, forms one SCC
   let deepChainScc := [("H1", [["a"]], []), ("H2", [["a"], ["b"]], []), ("H3", [["b"], ["c"]], []),
                        ("H4", [["c"], ["d"]], []), ("H5", [["d"], ["e"]], []), ("H6", [["e"], ["f"]], [])]
   let deepChainComps := [LazyList.fromList (List.permutations deepChainScc)]
   let deepVars := ["a", "b", "c", "d", "e", "f"]
-  let deepAllHyps := ["H1", "H2", "H3", "H4", "H5", "H6"]
 
   let deepOriginal := enumSchedulesChunked deepVars [] deepChainComps [] |>.toList.length
   let deepPruned := enumSchedulesChunkedWithPruning deepVars [] deepChainComps [] 6 |>.toList.length
@@ -1034,7 +971,6 @@ private partial def enumSchedulesChunkedWithPruning {α v} [BEq v] [Repr α] [Re
   let scc3 := [("H5", [["t"]], []), ("H6", [["t"], ["u"]], [])]
   let branchComps := [LazyList.fromList (List.permutations scc1), LazyList.fromList (List.permutations scc2), LazyList.fromList (List.permutations scc3)]
   let branchVars := ["p", "q", "r", "s", "t", "u"]
-  let branchAllHyps := ["H1", "H2", "H3", "H4", "H5", "H6"]
 
   let branchOriginal := enumSchedulesChunked branchVars [] branchComps [] |>.toList.length
   let branchPruned := enumSchedulesChunkedWithPruning branchVars [] branchComps [] 6 |>.toList.length
@@ -1048,7 +984,6 @@ private partial def enumSchedulesChunkedWithPruning {α v} [BEq v] [Repr α] [Re
                        LazyList.fromList (List.permutations complexScc3), LazyList.fromList (List.permutations complexScc4)]
   let complexVars := ["a", "b", "c", "d", "e", "m1", "m2", "m3"]
   let complexMatchable := ["m1", "m2", "m3"]
-  let complexAllHyps := ["H1", "H2", "H3", "H4", "H5", "H6"]
 
   let complexOriginal := enumSchedulesChunked complexVars complexMatchable complexComps [] |>.toList.length
   let complexPruned := enumSchedulesChunkedWithPruning complexVars complexMatchable complexComps [] 6 |>.toList.length
@@ -1062,7 +997,6 @@ private partial def enumSchedulesChunkedWithPruning {α v} [BEq v] [Repr α] [Re
   let worstComps := [LazyList.fromList (List.permutations worstScc1), LazyList.fromList (List.permutations worstScc2), LazyList.fromList (List.permutations worstScc3),
                      LazyList.fromList (List.permutations worstScc4), LazyList.fromList (List.permutations worstScc5)]
   let worstVars := ["a", "b", "c", "d", "e", "f"]
-  let worstAllHyps := ["H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H9"]
 
   let worstOriginal := enumSchedulesChunked worstVars [] worstComps [] |>.toList.length
   let worstPruned := enumSchedulesChunkedWithPruning worstVars [] worstComps [] 9 |>.toList.length
@@ -1078,14 +1012,13 @@ private partial def enumSchedulesChunkedWithPruning {α v} [BEq v] [Repr α] [Re
                        (deepOriginal + branchOriginal + complexOriginal + worstOriginal)
   IO.println s!"Total Reduction: {totalReduction}%"
   pure ()
-#print PreScheduleScore
 
+#guard_msgs(drop info) in
 #eval do
   let benchHyps := [("H1", [["a"]], []), ("H2", [["a"], ["b"]], []), ("H3", [["b"], ["c"]], []),
                     ("H4", [["c"], ["d"]], []), ("H5", [["a", "d"]], []), ("H6", [["b", "d"]], [])]
   let benchComps := [(enumDependencySatisfyingOrderings $ benchHyps.map (fun ((a : String),(b : List (List String)),c) => ((a,b,c),b.flatten ++ c) ))]
   let benchVars := ["a", "b", "c", "d"]
-  let benchAllHyps := ["H1", "H2", "H3", "H4", "H5", "H6"]
 
   -- Measure quality of schedules (lower scores are better)
   let originalSchedules := enumSchedulesChunked benchVars [] benchComps [] |>.toList
@@ -1206,12 +1139,8 @@ private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List Hypot
   let remainingVars := List.filter (fun v => not $ fixedVars.contains v) varNames
   let (newCheckedIdxs, newCheckedHyps) := List.unzip $ (collectCheckedHypotheses scheduleEnv fixedVars [])
   let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
-  -- let computeSCC a := [a]
   let rawHypotheses := remainingSortedHypotheses.map (fun (h,vars) => ((h,vars), List.flatten vars))
   let sccGroups := computeSCC rawHypotheses
-  dbg_trace s!"Raw hypotheses: {rawHypotheses.length}"
-  dbg_trace s!"SCC groups: {sccGroups.length}"
-  dbg_trace s!"SCC group sizes: {sccGroups.map List.length}"
   let connectedHypotheses := sccGroups
                              |>.map (enumDependencySatisfyingOrderings ·
                                     |> LazyList.mapLazyList (List.map <| constructHypothesis typeVars))
@@ -1248,7 +1177,7 @@ def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) 
     - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
       + `recCall` represents what a recursive call to the function being derived looks like
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
-def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+private def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
   let typeVars := vars.filterMap fun ⟨v,t⟩ => if t.isSort then some v else none
   let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
@@ -1266,7 +1195,7 @@ def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr)
   let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM preScheduleStepToScheduleStep)
   lazySchedules
 
-def exampleEnumSchedulesChunked :=
+private def exampleEnumSchedulesChunked :=
   -- All hypotheses from Cedar.HasType.TContainsAny constructor
   let hypotheses := [
     (`V_eq, [[`ets, `acts, `R]], [`V]),
@@ -1284,7 +1213,7 @@ def exampleEnumSchedulesChunked :=
                              |>.map (@enumDependencySatisfyingOrderings _ _ ⟨fun (a,_) (b,_) => BEq.beq a b⟩ _ _ _ _)
   enumSchedulesChunked [`ets,`acts,`R,`ns,`T,`T1,`T2,`E1,`x1,`x2] [] components [`V]
 
-def exampleEnumSchedulesChunkedPruned :=
+private def exampleEnumSchedulesChunkedPruned :=
   -- All hypotheses from Cedar.HasType.TContainsAny constructor
   let hypotheses := [
     (`V_eq, [[`ets, `acts, `R]], [`V]),
@@ -1302,7 +1231,7 @@ def exampleEnumSchedulesChunkedPruned :=
                              |>.map (@enumDependencySatisfyingOrderings _ _ ⟨fun (a,_) (b,_) => BEq.beq a b⟩ _ _ _ _)
   enumSchedulesChunkedWithPruning [`ets,`acts,`R,`ns,`T,`T1,`T2,`E1,`x1,`x2] [] components [`V] 0
 
-def countChecks (schd : List (PreScheduleStep α β)) : Nat :=
+private def countChecks (schd : List (PreScheduleStep α β)) : Nat :=
   schd.foldl (fun acc step => match step with | PreScheduleStep.Checks cs => acc + cs.length | _ => acc) 0
 
 /-
@@ -1315,69 +1244,9 @@ Sorts all the schedules according to the used ordering, so we can examine them.
   | .gt => false
   | .lt => true)
 
+#guard_msgs(drop info) in
 #eval exampleEnumSchedulesChunkedPruned.take 200000 |>.mergeSort (le := fun a b =>
   match compare (countChecks a) (countChecks b) with
   | .eq => a.length < b.length
   | .gt => false
   | .lt => true)
-
--- instance : MonadState s (LazyListState s) where
---   get := fun s => (pure s, s)
---   set newState := fun _ => (pure (), newState)
---   modifyGet f := fun s => match f s with | (a, s') => (pure a, s')
-
--- instance : MonadLift LazyList (LazyListState σ) where
---   monadLift l := fun s => (l, s)
-
--- -- Branch-and-bound test: find paths with cost ≤ bestCost
--- structure BranchBoundState where
---   bestCost : Nat
---   pathsExplored : Nat deriving Repr
-
--- -- Test example comparing StateT vs LazyListState for branch-and-bound
--- #eval do
---   let paths := [("A", 5), ("B", 3), ("C", 7), ("D", 2), ("E", 8)]
-
---   -- StateT approach (parallel - no pruning)
---   let testStateT : StateT BranchBoundState LazyList String := do
---     let (path, cost) ← StateT.lift (LazyList.fromList paths)
---     let state ← get
---     set {state with pathsExplored := state.pathsExplored + 1}
---     if cost ≤ state.bestCost then
---       set {state with bestCost := cost}
---       pure s!"{path}(cost:{cost})"
---     else
---       StateT.lift LazyList.lnil
-
---   let stateTResults := testStateT.run ⟨10, 0⟩
---   IO.println s!"StateT results: {repr stateTResults.toList}"
-
---   -- LazyListState approach (sequential - effective pruning)
---   let testLazyListState : LazyListState BranchBoundState String := do
---     let (path, cost) ← LazyList.fromList paths
---     let state ← get
---     set {state with pathsExplored := state.pathsExplored + 1}
---     if cost ≤ state.bestCost then
---       set {state with bestCost := cost}
---       pure s!"{path}(cost:{cost},best:{cost})"
---     else
---       pure s!"{path}(PRUNED,best:{state.bestCost})"
-
---   let lazyListStateResults := testLazyListState ⟨10, 0⟩
---   IO.println s!"LazyListState results: {repr lazyListStateResults}"
-
---   -- Laziness test: large data that would timeout if evaluated eagerly
---   let hugePaths := LazyList.range 1 |>.mapLazyList fun i => (s!"Path{i}", i % 100)
---   let lazyTest : LazyListState BranchBoundState String := do
---     let (path, cost) ← hugePaths
---     let state ← get
---     if cost ≤ 5 then  -- Only process very low costs
---       set {state with bestCost := cost, pathsExplored := state.pathsExplored + 1}
---       pure s!"{path}(cost:{cost})"
---     else
---       pure s!"SKIP"
-
---   -- This should return quickly, taking only first few elements
---   let lazyResults := lazyTest ⟨10, 0⟩
---   IO.println s!"Lazy test (first 5): {repr (lazyResults.fst.take 5)}"
---   pure ()

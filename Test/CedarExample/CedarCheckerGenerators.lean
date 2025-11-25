@@ -312,8 +312,5 @@ derive_generator (fun ns p => ∃ (T : _), Cedar.BindAttrType ns p T)
 ------------------------------------------------------------
 -- Generator for well-typed Cedar expressions
 ------------------------------------------------------------
-set_option trace.plausible.deriving.results true in
--- set_option trace.plausible.deriving.arbitrary true in
--- set_option trace.profiler true in
 #guard_msgs(drop info, drop warning) in
 derive_generator (fun a v t => ∃ (ex : (CedarExpr × PathSet)), Cedar.HasType a v ex t)
