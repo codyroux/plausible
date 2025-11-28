@@ -440,7 +440,7 @@ def getScheduleForInductiveRelationConstructor
       linearizeAndFlatten hypotheses conclusion outputIndex (← getLCtx)
     -- Enter the updated `LocalContext` containing the fresh variable that was created when rewriting the conclusion
     withLCtx' updatedLocalCtx (do
-      let hypothesisExprs := (← monadLift (updatedHypotheses.toList.mapM exprToHypothesisExpr)).toArray
+      let hypothesisExprs := (← monadLift (updatedHypotheses.toList.mapM (exprToHypothesisExpr ctorName))).toArray
 
       trace[plausible.deriving.arbitrary] m!"Hypotheses to be ordered as HypothesisExprs: {updatedHypotheses}"
 
@@ -485,7 +485,7 @@ def getScheduleForInductiveRelationConstructor
         assert! (← get).equalities.isEmpty
 
       -- Convert the conclusion from an `Expr` to a `HypothesisExpr`
-      let conclusionExpr ← exprToHypothesisExpr updatedConclusion
+      let conclusionExpr ← exprToHypothesisExpr ctorName updatedConclusion
 
       let ctorNameOpt :=
         match deriveSort with
@@ -530,6 +530,7 @@ def getScheduleForInductiveRelationConstructor
       let possibleSchedules := possibleSchedules
         (vars := updatedForAllVars)
         (hypotheses := hypothesisExprs.toList)
+        ctorName
         deriveSort
         recCall
         fixedVars

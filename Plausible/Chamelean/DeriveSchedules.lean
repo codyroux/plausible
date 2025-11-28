@@ -1052,7 +1052,7 @@ private def recursiveFunctionName (deriveSort : DeriveSort) : Name :=
   | .Enumerator => `aux_enum
   | .Checker | .Theorem => `aux_dec
 
-private def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr TypedVar) : ScheduleM (List ScheduleStep) := do
+private def preScheduleStepToScheduleStep (ctorName : Name) (preStep : PreScheduleStep HypothesisExpr TypedVar) : ScheduleM (List ScheduleStep) := do
   let env ← read
   match preStep with
   | .Checks hyps => return (hyps.map (fun hyp =>
@@ -1083,12 +1083,12 @@ private def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisE
     return (ScheduleStep.SuchThat typedOutputs constrainingRelation env.prodSort :: newMatches)
   | .InstVars vars =>
     vars.mapM (fun ⟨v,ty⟩ => do
-    let (ctorName, ctorArgs) := ty.getAppFnArgs
+    let (cName, cArgs) := ty.getAppFnArgs
     let src ←
-      if ctorName == Prod.fst env.recCall
-        then Source.Rec (recursiveFunctionName env.deriveSort) <$> ctorArgs.toList.mapM (fun foo => exprToConstructorExpr foo)
+      if cName == Prod.fst env.recCall
+        then Source.Rec (recursiveFunctionName env.deriveSort) <$> cArgs.toList.mapM (fun e => exprToConstructorExpr e)
       else
-        let hypothesisExpr ← exprToHypothesisExpr ty
+        let hypothesisExpr ← exprToHypothesisExpr ctorName ty
         pure (Source.NonRec hypothesisExpr)
     return ScheduleStep.Unconstrained v src env.prodSort
     )
@@ -1159,11 +1159,12 @@ private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List Hypot
     - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
       + `recCall` represents what a recursive call to the function being derived looks like
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
-def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+def possibleSchedules (ctorName : Name) (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep × Nat)) := do
   let (typedPreSchedules, scheduleEnv) := possiblePreSchedules vars hypotheses deriveSort recCall fixedVars
   let prunedImprovingTypedPreSchedules := filterWorse typedPreSchedules preScheduleStepsScore
-  let lazySchedules := prunedImprovingTypedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ (fun (s,c) => return (← s.flatMapM preScheduleStepToScheduleStep, c)))
+  let lazySchedules := prunedImprovingTypedPreSchedules.mapLazyList
+    ((ReaderT.run . scheduleEnv) ∘ (fun (s,c) => return (← s.flatMapM <| preScheduleStepToScheduleStep ctorName, c)))
   lazySchedules
 
 /-- Computes all possible schedules for a constructor
@@ -1176,7 +1177,7 @@ def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) 
     - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
       + `recCall` represents what a recursive call to the function being derived looks like
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
-private def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+private def possibleSchedules' (ctorName : Name) (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
   let typeVars := vars.filterMap fun ⟨v,t⟩ => if t.isSort then some v else none
   let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
@@ -1191,7 +1192,7 @@ private def possibleSchedules' (vars : List TypedVar) (hypotheses : List Hypothe
   let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedules' remainingVars typeVars connectedHypotheses fixedVars
   let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
   let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
-  let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM preScheduleStepToScheduleStep)
+  let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM (preScheduleStepToScheduleStep ctorName))
   lazySchedules
 
 private def exampleEnumSchedulesChunked :=
