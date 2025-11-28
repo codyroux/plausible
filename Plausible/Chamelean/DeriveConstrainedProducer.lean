@@ -615,7 +615,7 @@ def deriveConstrainedProducer
   -- (i.e. find `i` s.t. `argIdents[i] == outputName`)
   let outputIdxOpt := findTargetVarIndex outputName constrArgs
   if let .none := outputIdxOpt then
-    throwError "cannot find index of value to be generated"
+    throwError m!"cannot find index of {outputVar}, try specifying the implicit arguments"
   let outputIdx := Option.get! outputIdxOpt
 
   -- Obtain Lean's `InductiveVal` data structure, which contains metadata about the inductive relation
