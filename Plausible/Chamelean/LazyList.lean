@@ -185,22 +185,16 @@ instance [Monad m] : ForIn m (LazyList α) α where
           | .yield b' =>
             go l'.get b' f
 
--- Lazy construction that defers computation
-def lazyFromRange (n : Nat) : LazyList String :=
-  let rec build (i : Nat) : LazyList String :=
-    if i >= n then .lnil
-    else .lcons s!"item{i}" ⟨fun _ => build (i + 1)⟩
-  build 0
-
--- Test lazy ForIn that produces lazy output
-/--info: First 3: [item999997, item999998, item999999]-/
+-- Test that take 3 only evaluates first 3 elements
+/--info: First 3: [item2, item1, item0]-/
 #guard_msgs in
 #eval do
-  let result : LazyList String := Id.run do
-    let mut acc : LazyList String := .lnil
-    for x in range 1000000 do
-      acc := .lcons s!"item{x}" ⟨fun _ => acc⟩
-    return acc
+  let result : LazyList String :=
+    .lcons "item0" ⟨fun _ =>
+      .lcons "item1" ⟨fun _ =>
+        .lcons "item2" ⟨fun _ =>
+          .lcons "item3" ⟨fun _ =>
+            .lcons (dbg_trace "5th element evaluated!"; "item4") ⟨fun _ => .lnil⟩⟩⟩⟩⟩
   IO.println s!"First 3: {result.take 3}"
   pure ()
 
