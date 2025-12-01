@@ -181,7 +181,7 @@ def exprToHypothesisExpr (ctor : Name) (e : Expr) : MetaM HypothesisExpr := do
   if e.isApp || e.isConst then
     let (ctorName, args) := e.getAppFnArgs
     let env ← getEnv
-    if env.isConstructor ctorName then throwError m!"exprToHypothesisExpr: in constructor {ctor}\nExpr {e} cannot have head term {ctorName} which is a constructor. Must be a function or inductive"
+    if env.isConstructor ctorName then throwError m!"exprToHypothesisExpr: In constructor {ctor}\nExpr {e} cannot have head term {ctorName} which is a constructor. Must be a function or inductive"
     let constructorArgs ← args.mapM exprToConstructorExpr
     return (ctorName, constructorArgs.toList)
   else if e.isFVar then

@@ -1153,11 +1153,11 @@ private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List Hypot
     (each candidate schedule is represented as a `List ScheduleStep`).
 
     Arguments:
-    - `vars`: list of universally-quantified variables and their types
-    - `hypotheses`: List of hypotheses about the variables in `vars`
-    - `deriveSort` determines whether we're deriving a checker/enumerator/generator
-    - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
-      + `recCall` represents what a recursive call to the function being derived looks like
+    - `ctorName`: The name of the constructor we are deriving a schedule for
+    - `vars`: A list of universally-quantified variables and their types
+    - `hypotheses`: A list of hypotheses about the variables in `vars`
+    - `deriveSort` The sort (checker/enumerator/generator) of deriver we are generating
+    - `recCall`: A pair contianing the name of the inductive relation and a list of indices for output arguments
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
 def possibleSchedules (ctorName : Name) (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep × Nat)) := do
@@ -1167,16 +1167,7 @@ def possibleSchedules (ctorName : Name) (vars : List TypedVar) (hypotheses : Lis
     ((ReaderT.run . scheduleEnv) ∘ (fun (s,c) => return (← s.flatMapM <| preScheduleStepToScheduleStep ctorName, c)))
   lazySchedules
 
-/-- Computes all possible schedules for a constructor
-    (each candidate schedule is represented as a `List ScheduleStep`).
-
-    Arguments:
-    - `vars`: list of universally-quantified variables and their types
-    - `hypotheses`: List of hypotheses about the variables in `vars`
-    - `deriveSort` determines whether we're deriving a checker/enumerator/generator
-    - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
-      + `recCall` represents what a recursive call to the function being derived looks like
-    - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
+/-- An unoptimized version of `possibleSchedues` for testing purposes. -/
 private def possibleSchedules' (ctorName : Name) (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
   let typeVars := vars.filterMap fun ⟨v,t⟩ => if t.isSort then some v else none
@@ -1203,8 +1194,8 @@ private def exampleEnumSchedulesChunked :=
     (`WfCedarType, [[`ns], [`T]], []),
     (`SubType_T1, [[`T1], [`T]], []),
     (`SubType_T2, [[`T2], [`T]], []),
-    (`HasType_E1, [ [`E1], [`x1], [`T1]], [`V]),
-    (`HasType_E2, [ [`E2], [`x2], [`T2]], [`V])
+    (`HasType_E1, [[`E1], [`x1], [`T1]], [`V]),
+    (`HasType_E2, [[`E2], [`x2], [`T2]], [`V])
   ]
 
   -- Use computeSCC to find connected components then enumerate valid orderings that satisfy dependencies within each.
