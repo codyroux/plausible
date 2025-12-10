@@ -111,9 +111,14 @@ deriving BEq, DecidableEq
 
 /-- Converts the arguments to an `EntityName` to a String -/
 def stringOfEntityName (ps : List String) (t : String) : String :=
+  let escapeIdent (s : String) : String :=
+    if s.isEmpty || s.any (fun c => !c.isAlphanum && c != '_') || s.all (·.isDigit) then
+      let escaped := s.replace "\\" "\\\\" |>.replace "\"" "\\\""
+      "\"" ++ escaped ++ "\""
+    else s
   match ps with
-  | [] => t
-  | p::ps' => p ++ "::" ++ stringOfEntityName ps' t
+  | [] => escapeIdent t
+  | p::ps' => escapeIdent p ++ "::" ++ stringOfEntityName ps' t
 
 instance : ToString EntityName where
   toString := fun b =>
@@ -122,7 +127,8 @@ instance : ToString EntityName where
 
 /-- Converts an Entity UID to a string -/
 def stringOfEntityUID (ps : List String) (t : String) (id : String) : String :=
-  stringOfEntityName ps t ++ "::\"" ++ id ++ "\""
+  let escaped := id.replace "\\" "\\\\" |>.replace "\"" "\\\""
+  stringOfEntityName ps t ++ "::\"" ++ escaped ++ "\""
 
 instance : ToString EntityUID where
   toString := fun b =>
@@ -134,8 +140,10 @@ def stringOfPrim (p : Prim) : String :=
   match p with
   | Prim.boolean b => toString b
   | Prim.int i => toString i
-  | Prim.stringLit s => toString s
-  | Prim.entityUID e => toString e
+  | Prim.stringLit s => 
+      let escaped := s.replace "\\" "\\\\" |>.replace "\"" "\\\""
+      "\"" ++ escaped ++ "\""
+  | Prim.entityUID (EntityUID.MkEntityUID n id) => stringOfEntityUID (match n with | EntityName.MkName _ p => p) (match n with | EntityName.MkName t _ => t) id
 
 instance : ToString Prim where
   toString := stringOfPrim
@@ -151,7 +159,7 @@ instance : ToString Var where
 def stringOfPatElem (p : PatElem) : String :=
   match p with
   | PatElem.star => "*"
-  | PatElem.justLit s => s
+  | PatElem.justLit s => s.replace "\\" "\\\\" |>.replace "\"" "\\\""
 
 /-- Converts a List of `PatElem`s to `String`s -/
 def stringOfPats (p : List PatElem) : String :=
@@ -170,10 +178,10 @@ def stringOfExpr (e : CedarExpr) : String :=
   | CedarExpr.orExpr a b => "(" ++ stringOfExpr a ++ ") || (" ++ stringOfExpr b ++ ")"
   | CedarExpr.unaryApp op expr =>
     match op with
-    | UnaryOp.not => "not (" ++ stringOfExpr expr ++ ")"
-    | UnaryOp.neg => "- (" ++ stringOfExpr expr ++ ")"
+    | UnaryOp.not => "!(" ++ stringOfExpr expr ++ ")"
+    | UnaryOp.neg => "-(" ++ stringOfExpr expr ++ ")"
     | UnaryOp.like ps => "(" ++ stringOfExpr expr ++ ") like \"" ++ stringOfPats ps ++ "\""
-    | UnaryOp.is e => "is (" ++ toString e ++ ")"
+    | UnaryOp.is e => "(" ++ stringOfExpr expr ++ ") is " ++ toString e
   | CedarExpr.binaryApp op a b =>
     let sa := "(" ++ stringOfExpr a ++ ")"
     let sb := "(" ++ stringOfExpr b ++ ")"
@@ -188,12 +196,29 @@ def stringOfExpr (e : CedarExpr) : String :=
     | BinaryOp.contains => sa ++ ".contains" ++ sb
     | BinaryOp.containsAll => sa ++ ".containsAll" ++ sb
     | BinaryOp.containsAny => sa ++ ".containsAny" ++ sb
-  | CedarExpr.getAttr expr attr => "(" ++ stringOfExpr expr ++ ")." ++ attr
-  | CedarExpr.hasAttr expr attr => "(" ++ stringOfExpr expr ++ ") has " ++ attr
-  | CedarExpr.setExprNil => "nil"
-  | CedarExpr.setExprCons e ls => "(" ++ stringOfExpr e ++ ")::" ++ stringOfExpr ls
+  | CedarExpr.getAttr expr attr => "(" ++ stringOfExpr expr ++ ")." ++ quoteIfNeeded attr
+  | CedarExpr.hasAttr expr attr => "(" ++ stringOfExpr expr ++ ") has " ++ quoteIfNeeded attr
+  | CedarExpr.setExprNil => "[]"
+  | CedarExpr.setExprCons e CedarExpr.setExprNil => "[" ++ stringOfExpr e ++ "]"
+  | CedarExpr.setExprCons e ls => "[" ++ stringOfExpr e ++ ", " ++ stringOfSetExpr ls ++ "]"
   | CedarExpr.recExprNil => "{}"
-  | CedarExpr.recExprCons s e attrs => "{ " ++ s ++ ": " ++ stringOfExpr e ++ " }" ++ stringOfExpr attrs
+  | CedarExpr.recExprCons s e CedarExpr.recExprNil => "{" ++ quoteIfNeeded s ++ ": " ++ stringOfExpr e ++ "}"
+  | CedarExpr.recExprCons s e attrs => "{" ++ quoteIfNeeded s ++ ": " ++ stringOfExpr e ++ ", " ++ stringOfRecExpr attrs ++ "}"
+where
+  quoteIfNeeded (s : String) : String :=
+    if s.isEmpty || s.any (fun c => !c.isAlphanum && c != '_') then "\"" ++ s ++ "\"" else s
+  stringOfSetExpr (e : CedarExpr) : String :=
+    match e with
+    | CedarExpr.setExprNil => ""
+    | CedarExpr.setExprCons e CedarExpr.setExprNil => stringOfExpr e
+    | CedarExpr.setExprCons e ls => stringOfExpr e ++ ", " ++ stringOfSetExpr ls
+    | _ => ""
+  stringOfRecExpr (e : CedarExpr) : String :=
+    match e with
+    | CedarExpr.recExprNil => ""
+    | CedarExpr.recExprCons s e CedarExpr.recExprNil => quoteIfNeeded s ++ ": " ++ stringOfExpr e
+    | CedarExpr.recExprCons s e attrs => quoteIfNeeded s ++ ": " ++ stringOfExpr e ++ ", " ++ stringOfRecExpr attrs
+    | _ => ""
 
 instance : ToString CedarExpr where
   toString := stringOfExpr

@@ -19,10 +19,15 @@ derive_generator (fun Γ x => ∃ (τ : type), lookup Γ x τ)
 
 #guard_msgs(drop info, drop warning) in
 derive_generator (fun G e => ∃ (t : type), typing G e t)
-
+set_option trace.plausible.deriving.results true
 #guard_msgs(drop info, drop warning) in
-derive_generator (fun G t => ∃ (e : term), typing G e t)
+#time derive_generator (fun G t => ∃ (e : term), typing G e t)
 
 -- To sample from this generator and print out 10 successful examples using the `Repr`
 -- instance for `term`, we can run the following:
 -- #eval Gen.run (ArbitrarySizedSuchThat.arbitrarySizedST (fun e => typing [] e $ .Fun .Nat .Nat) 3) 3
+
+inductive Foo {α} [h : Inhabited α] : α → Prop where
+| foo c : Foo c
+
+derive_generator fun α [Inhabited α] => ∃ c : α, Foo c

@@ -4,6 +4,7 @@ import Plausible.Chamelean.Schedules
 import Plausible.Chamelean.UnificationMonad
 import Plausible.Chamelean.MakeConstrainedProducerInstance
 import Plausible.Chamelean.LazyList
+import Plausible.Chamelean.SearchTree
 import Lean.Util.SCC
 
 namespace Schedules
@@ -720,6 +721,52 @@ private partial def enumDependencySatisfyingOrderings {α v} [BEq α] [Repr α] 
 #guard_msgs in
 #eval enumDependencySatisfyingOrderings [("A",[1]),("B",[1,2]),("C",[2,3]),("D",[4]),("E",[5,1,2]), ("F",[4,6])] |>.length  -- Should be much less
 
+-- EXACT SIZE CALCULATION WITHOUT ENUMERATION
+private def countDependencySatisfyingOrderingsExact {α v} [BEq α] [BEq v] (hyps : List (α × List v)) : Nat :=
+  let neighbors := getNeighbors hyps
+  let rec countExact (remaining : List (α × List α)) (placedHyps : List α) : Nat :=
+    match remaining with
+    | [] => 1
+    | (h, deps) :: rest =>
+      let inOrder := deps.filter (placedHyps.contains ·)
+      let insertionPositions := inOrder.length + 1
+      insertionPositions * countExact rest (h :: placedHyps)
+  countExact neighbors []
+
+-- Test the exact counting vs actual enumeration
+/--info: "Exact count: 4, Actual count: 4"-/
+#guard_msgs in
+#eval let hyps := [("H",[1]),("I",[1,2]),("J",[2]),("K",[3])]
+      let exactCount := countDependencySatisfyingOrderingsExact hyps
+      let actualCount := enumDependencySatisfyingOrderings hyps |>.length
+      s!"Exact count: {exactCount}, Actual count: {actualCount}"
+
+-- Test on ValidTensorScalarOp - this should be much faster!
+/-info: (will show exact count without computing all orderings)-/
+
+#time #eval countDependencySatisfyingOrderingsExact [
+  ("ValidHeader", ["header"]),
+  ("ValidEvents", ["events"]),
+  ("HasTensorScalarOpcode", ["header"]),
+  ("TensorScalarValidOps", ["op0", "op1"]),
+  ("TensorScalarValidTypes", ["header", "in_dtype", "out_dtype"]),
+  ("TensorScalarImmediatesCheck", ["imm0_src", "imm1_src", "imm0", "imm1", "header", "in_dtype", "num_active_channels"]),
+  ("TensorScalarShiftChk", ["op0", "op1", "in_dtype"]),
+  ("TensorScalarTensorChk", ["src_mem_pattern", "in_dtype", "dst_mem_pattern", "out_dtype"]),
+  ("TensorScalarReverseChk", []),
+  ("S3d3TransposeCheck", ["header", "src_mem_pattern", "num_active_channels"]),
+  ("ValidDtype_in", ["in_dtype"]),
+  ("ValidDtype_out", ["out_dtype"]),
+  ("ValidAluOp_op0", ["op0"]),
+  ("ValidAluOp_op1", ["op1"]),
+  ("HasZeroAccumCmdField", ["accumulator_cmd"]),
+  ("HasValidActiveChannelRange", ["num_active_channels"]),
+  ("StartAddrActiveChannels_src", ["src_mem_pattern", "num_active_channels"]),
+  ("StartAddrActiveChannels_dst", ["dst_mem_pattern", "num_active_channels"]),
+  ("Tensor3dValid_src", ["src_mem_pattern", "in_dtype"]),
+  ("Tensor3dValid_dst", ["dst_mem_pattern", "out_dtype"])
+]
+
 -- Subset with connected component A-B-C-E
 /--info: [["E", "C", "B", "A"],
  ["E", "A", "C", "B"],
@@ -754,6 +801,32 @@ private partial def enumDependencySatisfyingOrderings {α v} [BEq α] [Repr α] 
 /--info: 720-/
 #guard_msgs in
 #eval enumDependencySatisfyingOrderings (List.map (fun a => (a,(a...(a + 10)).toList)) (1...7).toList) |>.length  -- Should be much less
+
+-- Test with ValidTensorScalarOp hypotheses - this will show the actual complexity
+/-info: (will show actual count)-/
+
+#eval enumDependencySatisfyingOrderings [
+  ("ValidHeader", ["header"]),
+  ("ValidEvents", ["events"]),
+  ("HasTensorScalarOpcode", ["header"]),
+  ("TensorScalarValidOps", ["op0", "op1"]),
+  ("TensorScalarValidTypes", ["header", "in_dtype", "out_dtype"]),
+  ("TensorScalarImmediatesCheck", ["imm0_src", "imm1_src", "imm0", "imm1", "header", "in_dtype", "num_active_channels"]),
+  ("TensorScalarShiftChk", ["op0", "op1", "in_dtype"]),
+  ("TensorScalarTensorChk", ["src_mem_pattern", "in_dtype", "dst_mem_pattern", "out_dtype"]),
+  ("TensorScalarReverseChk", []),
+  ("S3d3TransposeCheck", ["header", "src_mem_pattern", "num_active_channels"]),
+  ("ValidDtype_in", ["in_dtype"]),
+  ("ValidDtype_out", ["out_dtype"]),
+  ("ValidAluOp_op0", ["op0"]),
+  ("ValidAluOp_op1", ["op1"]),
+  ("HasZeroAccumCmdField", ["accumulator_cmd"]),
+  ("HasValidActiveChannelRange", ["num_active_channels"]),
+  ("StartAddrActiveChannels_src", ["src_mem_pattern", "num_active_channels"]),
+  ("StartAddrActiveChannels_dst", ["dst_mem_pattern", "num_active_channels"]),
+  ("Tensor3dValid_src", ["src_mem_pattern", "in_dtype"]),
+  ("Tensor3dValid_dst", ["dst_mem_pattern", "out_dtype"])
+] |>.take 1  -- Limit to 10K to avoid timeout
 
 /--
 `enumSchedules'` is a variant of `enumSchedules` where instead of taking a list of hypotheses to permute,
@@ -835,7 +908,7 @@ structure PreScheduleScore where
   checks : Nat
   length : Nat
   unconstrained : Nat
-  deriving Ord, Repr
+  deriving Ord, Repr, BEq
 
 def preScheduleStepsScore (schedule : List (PreScheduleStep α β)) : PreScheduleScore :=
   let steps := schedule
@@ -894,58 +967,113 @@ def List.permutations {α : Type u} : List α → List (List α)
   | x :: xs => ((List.permutations xs).flatMap fun perm =>
     (List.range (perm.length + 1)).map fun i => perm.take i ++ [x] ++ perm.drop i)
 
--- Branch and bound during enumeration using StateT
-private partial def enumSchedulesChunkedWithPruning {α v} [BEq v] [Repr α] [Repr v] [Hashable v] (vars : List v) (matchableVars : List v) (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v) (numHyps : Nat)
+private def processChoice {α v} [BEq v] [Hashable v] (hyp : α)
+        (out bound : List (List v)) (some_bound_output_indices : List (List v))
+        (always_bound_variables : List v) (rest : List (α × List (List v) × List v))
+        (currentEnv : List v) (currentEnvSet : Std.HashSet v)
+        : Option (List (PreScheduleStep α v) × List (α × List (List v) × List v) × List v × Std.HashSet v) :=
+  if out.length > 1 || (out.isEmpty && !bound.isEmpty) then none else
+  let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (!currentEnvSet.contains ·)
+  let newEnvSet := bound_vars.foldl (fun s v => s.insert v) currentEnvSet
+  let newEnv := bound_vars ++ currentEnv
+  let (prechecks, to_be_satisfied) := List.partition (needs_checking newEnv) rest
+  let out_vars := out.flatten
+  let finalEnvSet := out_vars.foldl (fun s v => s.insert v) newEnvSet
+  let finalEnv := out_vars ++ newEnv
+  let (postchecks, to_be_satisfied') := List.partition (needs_checking finalEnv) to_be_satisfied
+  let newSched := prune_empties [.InstVars bound_vars
+                                , .Checks (Prod.fst <$> prechecks)
+                                , .Produce out_vars hyp
+                                , .Checks (Prod.fst <$> postchecks)]
+  some (newSched, to_be_satisfied', finalEnv, finalEnvSet)
+
+private def findMins [Ord β] (l : List α) (score : α → β) : List α :=
+  let rec aux (l : List α) (best : List α) (minScore : β) :=
+    match l with
+    | [] => best
+    | a :: as =>
+      let ascore := score a
+      match compare ascore minScore with
+      | .lt => aux as [a] ascore
+      | .eq => aux as (a :: best) minScore
+      | .gt => aux as best minScore
+  match l with
+  | [] => []
+  | a :: as => aux as [a] (score a)
+
+private partial def enumSchedulesChunkedWithPruning {α v} [Ord v] [BEq v] [Repr α] [Repr v] [Hashable v] (vars : List v) (matchableVars : List v) (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v) (numHyps : Nat)
   : LazyList (List (PreScheduleStep α v)) :=
   let matchableSet := Std.HashSet.ofList matchableVars
-  let rec go (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v) (sched : List (PreScheduleStep α v)) (numHypsRemaining : Nat) (bestScore : PreScheduleScore)
+
+  /-
+  go takes:
+  hypComps, a list where each element is an enumeration of all permutations of a strongly connected component of hypotheses that are distinct according variable dependencies
+  env, an environment of variables that have been bound already in the schedule prefix under consideration
+  sched, the schedule prefix already constructed that we are enumerating how to extend to a full schedule
+  numHypsRemaining, a count of the remaining hypotheses to be checked/produced with across all components
+  bestScore, the best (smallest) scoring complete schedule seen so far. If the current schedule's score lower bound exceeds this, this enumeraiton is pruned.
+    When a new schedule is found with an improved score, its score replaces bestScore.
+  go returns an enumeration of schedules constructed alongside their score that beat all prior schedules considered, so the enumeration is monotonically decreasing in score.
+  -/
+  let rec go [BEq v] (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v) (sched : List (PreScheduleStep α v)) (numHypsRemaining : Nat) (bestScore : PreScheduleScore)
     : LazyList (List (PreScheduleStep α v) × PreScheduleScore) :=
     match hypComps with
-    | [] => do
+    | [] => do /- If there are no more strongly connected components of hypotheses to satisfy, we can finish our schedule by instantiating the remaining uninstantiated variables in an unconstrained manner
+      and then return the schedule. -/
       let finalSched := sched ++ prune_empties [.InstVars <| vars.filter (!(Std.HashSet.ofList env).contains ·)]
       let finalScore := preScheduleStepsScore finalSched
-      if finalScore < bestScore then
+      if finalScore < bestScore then /- Only include this schedule in the enumeration if it improves on the bestScore to get monotonicity property, also update the new best score. -/
         pure (finalSched, finalScore)
       else
-        .lnil
-    | componentPerms :: hypComps' =>
-      sequentialFlatMap componentPerms bestScore (fun perm currentBest =>
-        let partialScore := preScheduleStepsScore sched
-        let lowerBound := estimateLowerBound partialScore perm.length
-        if lowerBound > currentBest then .lnil else
+        .lnil /- If it isn't better than the best so far, prune it. -/
+    | componentPerms :: hypComps' => /- Consider the next component of hypotheses. -/
+      let componentBest := initWorstScore (componentPerms.head?.getD [] |>.length)
+      let envMemo : Std.HashMap (List v) PreScheduleScore := {}
+      let rec processPerm [BEq v] (currentPerm : List _) (currentSched : List (PreScheduleStep α v)) (currentEnv : List v) (currentEnvSet : Std.HashSet v)
+                          (st : PreScheduleScore × Std.HashMap (List v) PreScheduleScore)
+        : LazyList ((List (PreScheduleStep α v) × List v) × (PreScheduleScore × Std.HashMap (List v) PreScheduleScore)) :=
+        let (runningComponentBest, envMemo) := st
+        let currentScore := preScheduleStepsScore currentSched
+        let remainingHyps := currentPerm.length
+        let lowerBound := estimateLowerBound currentScore remainingHyps
+        let envKey := ((List.eraseDups currentEnv) |>.mergeSort (fun a b => compare a b |>.isLE))
+        let dominatingScore := envMemo[envKey]?.getD componentBest
+        -- dbg_trace "processPerm: remainingHyps={remainingHyps}, currentScore={repr currentScore}, lowerBound={repr lowerBound}, runningBest={repr runningComponentBest}, dominatingScore={repr dominatingScore}"
+        if lowerBound > runningComponentBest then
+          -- dbg_trace "PRUNED: lowerBound > runningComponentBest ({repr lowerBound} >= {repr runningComponentBest}) \n"
+          .lnil
+        else if dominatingScore < currentScore then
+          dbg_trace "PRUNED: dominatingScore < currentScore ({repr dominatingScore} < {repr currentScore}) \n"
+          .lnil
+        else
+        match currentPerm with
+        | [] =>
+          -- dbg_trace "BASE CASE: returning final schedule with score {repr currentScore}"
+          pure ((sched ++ currentSched, currentEnv), (currentScore, envMemo))
+        | (hyp, potential_output_indices, always_bound_variables) :: rest =>
+          -- dbg_trace "PROCESSING hyp: {repr hyp}, potential_outputs: {repr potential_output_indices.length}, always_bound: {repr always_bound_variables.length}"
+          let envMemo := if currentScore < dominatingScore then envMemo.insert envKey currentScore else envMemo
+          let (some_bound_output_indices, all_unbound_output_indices) := potential_output_indices.partition
+            (fun l =>
+              l.any (fun v => currentEnvSet.contains v && !matchableSet.contains v)
+              || l.all matchableSet.contains)
+          let choices := ([],all_unbound_output_indices) :: (select all_unbound_output_indices |>.toList.map (fun (a,b) => ([a],b)))
+          let validChoices := choices.filterMap (fun (out,bound) => processChoice hyp out bound some_bound_output_indices always_bound_variables rest currentEnv currentEnvSet)
+          -- dbg_trace "CHOICES: total={choices.length}, valid={validChoices.length}"
+          let sortedChoices := validChoices.mergeSort (fun (a,_,_,_) (b,_,_,_) => preScheduleStepsScore a ≤ preScheduleStepsScore b)
 
-        let rec processPerm (currentPerm : List _) (currentSched : List _) (currentEnv : List _) (currentEnvSet : Std.HashSet _) (runningBest : PreScheduleScore) : LazyList (List (PreScheduleStep α v) × PreScheduleScore) :=
-          -- Prune if current partial score already exceeds best
-          let currentPartialScore := preScheduleStepsScore currentSched
-          let remainingHyps := currentPerm.length
-          let lowerBound := estimateLowerBound currentPartialScore remainingHyps
-          if lowerBound > runningBest then .lnil else
-          match currentPerm with
-          | [] => go hypComps' currentEnv currentSched (numHypsRemaining - perm.length) runningBest
-          | (hyp, potential_output_indices, always_bound_variables) :: rest =>
-            let (some_bound_output_indices, all_unbound_output_indices) := potential_output_indices.partition
-              (fun l =>
-                l.any (fun v => currentEnvSet.contains v && !matchableSet.contains v)
-                || l.all matchableSet.contains)
-            let choices := .lcons ([],all_unbound_output_indices) ⟨fun _ => select all_unbound_output_indices |>.mapLazyList (fun (a,b) => ([a],b))⟩
-            -- When switching to multiple argument outputs, use `subsetsAndComplements all_unbound_output_indices` instead to consider all subsets.
-            sequentialFlatMap choices runningBest fun (out,bound) subBest =>
-              if out.length > 1 || (out.isEmpty && !bound.isEmpty) then .lnil else
-              let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (!currentEnvSet.contains ·)
-              let newEnvSet := bound_vars.foldl (fun s v => s.insert v) currentEnvSet
-              let newEnv := bound_vars ++ currentEnv
-              let (prechecks, to_be_satisfied) := List.partition (needs_checking newEnv) rest
-              let out_vars := out.flatten
-              let finalEnvSet := out_vars.foldl (fun s v => s.insert v) newEnvSet
-              let finalEnv := out_vars ++ newEnv
-              let (postchecks, to_be_satisfied') := List.partition (needs_checking finalEnv) to_be_satisfied
-              let newSched := currentSched ++ prune_empties [.InstVars bound_vars
-                                        , .Checks (Prod.fst <$> prechecks)
-                                        , .Produce out_vars hyp
-                                        , .Checks (Prod.fst <$> postchecks)]
-              processPerm to_be_satisfied' newSched finalEnv finalEnvSet subBest
+          sequentialFlatMap (LazyList.fromList sortedChoices) (runningComponentBest,envMemo) fun (newSteps, to_be_satisfied', finalEnv, finalEnvSet) (runningComponentBest, envMemo) =>
+            processPerm to_be_satisfied' (currentSched ++ newSteps) finalEnv finalEnvSet (runningComponentBest, envMemo)
 
-        processPerm perm sched env (Std.HashSet.ofList env) currentBest)
+      let componentResults := sequentialFlatMap componentPerms (componentBest, envMemo) (fun perm (runningComponentBest, envMemo) =>
+        processPerm perm [] env (Std.HashSet.ofList env) (runningComponentBest, envMemo)) |>.mapLazyList (fun (a,_) => a)
+
+      sequentialFlatMap componentResults bestScore (fun (newSched, newEnv) globalBest =>
+        let score := preScheduleStepsScore newSched
+        let remainingHyps := numHypsRemaining - (componentPerms.head?.getD []).length
+        let lowerBound := estimateLowerBound score remainingHyps
+        if lowerBound > globalBest then .lnil else
+        go hypComps' newEnv newSched (numHypsRemaining - (componentPerms.head?.getD []).length) globalBest)
 
   let initialScore := initWorstScore numHyps
   go hypComps env [] numHyps initialScore |>.mapLazyList (fun (schd, _score) => schd)
@@ -1149,6 +1277,43 @@ private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List Hypot
   let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList ((firstChecks :: ·) ∘ List.map (typePreScheduleStep nameTypeMap))
   (typedPreSchedules, scheduleEnv)
 
+/-- Converts a HypothesisExpr to a list of VarExpr, checking each argument for function applications -/
+private def hypothesisToVarExpr (hyp : HypothesisExpr) : List (SearchTree.VarExpr Name) :=
+  let (_, args) := hyp
+  args.map fun arg =>
+    let vars := variablesInConstructorExpr arg
+    if containsFunctionCall arg then
+      SearchTree.VarExpr.Func vars
+    else if vars.length > 1 then
+      SearchTree.VarExpr.Ctor vars
+    else
+      match vars with
+      | [v] => SearchTree.VarExpr.Var v
+      | _ => SearchTree.VarExpr.Ctor vars
+
+private def possiblePreSchedulesWithAdvancedPruning (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+  (recCall : Name × List Nat) (fixedVars : List Name) : LazyList ((List (PreScheduleStep HypothesisExpr TypedVar))) × ScheduleEnv :=
+  let typeVars := vars.filterMap fun ⟨v,t⟩ => if t.isSort then some v else none
+  let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
+  let varNames := vars.map (fun x => x.var)
+  let prodSort := convertDeriveSortToProducerSort deriveSort
+  let scheduleEnv := ⟨ vars, sortedHypotheses, deriveSort, prodSort, recCall, fixedVars ⟩
+  let remainingVars := List.filter (fun v => not <| fixedVars.contains v) varNames
+  let (newCheckedIdxs, newCheckedHyps) := List.unzip <| (collectCheckedHypotheses scheduleEnv fixedVars [])
+  let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
+  let rawHypotheses := remainingSortedHypotheses.map (fun (h,vars) => ((h,vars), List.flatten vars))
+  let sccGroups := computeSCC rawHypotheses
+  let connectedHypotheses := sccGroups
+                             |>.map (fun scc =>
+                                let hypVarMap := scc
+                                SearchTree.enumDependencySatisfyingOrderingsWithAdvancedPruning hypVarMap (fun (h,_) => hypothesisToVarExpr h)
+                                  |>.mapLazyList (List.map <| constructHypothesis typeVars))
+  let firstChecks := PreScheduleStep.Checks newCheckedHyps.reverse
+  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedulesChunkedWithPruning remainingVars typeVars connectedHypotheses fixedVars sortedHypotheses.length
+  let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
+  let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList ((firstChecks :: ·) ∘ List.map (typePreScheduleStep nameTypeMap))
+  (typedPreSchedules, scheduleEnv)
+
 /-- Computes all possible schedules for a constructor
     (each candidate schedule is represented as a `List ScheduleStep`).
 
@@ -1161,7 +1326,7 @@ private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List Hypot
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
 def possibleSchedules (ctorName : Name) (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep × Nat)) := do
-  let (typedPreSchedules, scheduleEnv) := possiblePreSchedules vars hypotheses deriveSort recCall fixedVars
+  let (typedPreSchedules, scheduleEnv) := possiblePreSchedulesWithAdvancedPruning vars hypotheses deriveSort recCall fixedVars
   let prunedImprovingTypedPreSchedules := filterWorse typedPreSchedules preScheduleStepsScore
   let lazySchedules := prunedImprovingTypedPreSchedules.mapLazyList
     ((ReaderT.run . scheduleEnv) ∘ (fun (s,c) => return (← s.flatMapM <| preScheduleStepToScheduleStep ctorName, c)))

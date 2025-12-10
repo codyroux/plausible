@@ -51,8 +51,15 @@ namespace Arbitrary
     using `size` as the size parameter for the generator.
     To invoke this function, you will need to specify what type `α` is,
     for example by doing `runArbitrary (α := Nat) 10`. -/
-def runArbitrary [Arbitrary α] (size : Nat) : IO α :=
+def runArbitrary {α : Type} [Arbitrary α] (size : Nat) : IO α :=
   Gen.run Arbitrary.arbitrary size
+
+/-- Prints multiple samples from the `Arbitrary` instance for a type.
+    Usage: `printSamples MyType` or `printSamples MyType 20` for 20 samples. -/
+def printSamples (α : Type) [Arbitrary α] [Repr α] (numSamples : Nat := 10) : IO Unit := do
+  for _ in [0:numSamples] do
+    let sample ← runArbitrary (α := α) 10
+    IO.println (repr sample)
 
 end Arbitrary
 
