@@ -29,6 +29,10 @@ set_option linter.unusedVariables false
 set_option match.ignoreUnusedAlts true
 
 /- We override the default `Arbitrary` instance for `String`s with our custom generator -/
+instance : Arbitrary String where
+  arbitrary := GeneratorCombinators.elementsWithDefault
+    "Aaron" ["Aaron", "John", "Mike", "Kesha", "Hicks", "A", "B", "C", "D"]
+
 instance : ArbitraryFueled String where
   arbitraryFueled _ := GeneratorCombinators.elementsWithDefault
     "Aaron" ["Aaron", "John", "Mike", "Kesha", "Hicks", "A", "B", "C", "D"]
@@ -43,8 +47,9 @@ deriving instance Arbitrary for
   Request, BoolType, CedarType, EntitySchemaEntry, ActionSchemaEntry, Schema,
   RequestType, Environment, PathSet
 
-instance {α} [Arbitrary α] : ArbitraryFueled α where
-  arbitraryFueled _ := Arbitrary.arbitrary
+-- Commented out to avoid overriding specific ArbitraryFueled instances like String
+-- instance {α} [Arbitrary α] : ArbitraryFueled α where
+--   arbitraryFueled _ := Arbitrary.arbitrary
 
 deriving instance Enum for
   EntityName, EntityUID, Prim, Var, PatElem, UnaryOp, BinaryOp, CedarExpr,
@@ -250,6 +255,9 @@ derive_checker (fun l fnb t => Cedar.LookupEntityAttr l fnb t)
 derive_generator (fun l t => ∃ (fnb : (String × Bool)), Cedar.LookupEntityAttr l fnb t)
 
 #guard_msgs(drop info, drop warning) in
+derive_checker fun ets nfn t => GetEntityAttr ets nfn t
+
+#guard_msgs(drop info, drop warning) in
 derive_generator (fun ets t => ∃ (nfn : (EntityName × String × Bool)), Cedar.GetEntityAttr ets nfn t)
 
 #guard_msgs(drop info, drop warning) in
@@ -312,5 +320,6 @@ derive_generator (fun ns p => ∃ (T : _), Cedar.BindAttrType ns p T)
 ------------------------------------------------------------
 -- Generator for well-typed Cedar expressions
 ------------------------------------------------------------
+set_option trace.plausible.deriving.results true
 #guard_msgs(drop info, drop warning) in
-derive_generator (fun a v t => ∃ (ex : (CedarExpr × PathSet)), Cedar.HasType a v ex t)
+#time derive_generator (fun a v t => ∃ (ex : (CedarExpr × PathSet)), Cedar.HasType a v ex t)

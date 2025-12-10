@@ -181,6 +181,6 @@ derive_generator fun α β xs ys => ∃ zs, @Interleaves α β xs ys zs
 inductive NotContains {α : Type} : List α → α → Prop where
 | empty : NotContains [] x
 | cons : x ≠ y → NotContains xs x → NotContains (y :: xs) x
-
-#guard_msgs(drop info) in
+set_option trace.plausible.deriving.results true
+#guard_msgs(drop error, drop info) in
 derive_generator fun α xs => ∃ x, @NotContains α xs x

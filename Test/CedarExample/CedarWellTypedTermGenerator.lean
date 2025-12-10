@@ -155,8 +155,25 @@ def genSchemaThenCedarExpr (fuel : Nat) : Gen (CedarExpr) := do
         | (expr, _) => return expr
       | _ => throw Gen.genericFailure
 
+def genWellFormedTypeAndExpr (fuel : Nat) : Gen (CedarType × CedarExpr) := do
+  let ns := [EntityName.MkName "EntityType1" [], EntityName.MkName "EntityType2" []]
+  let xs ← ArbitrarySizedSuchThat.arbitrarySizedST (fun s => WfSchema ns s) fuel
+  match xs with
+  | Schema.MkSchema ets acts => do
+    let reqs ← ArbitrarySizedSuchThat.arbitrarySizedST (fun rs => ActionSchemaToRequestTypes acts [] rs) fuel
+    let envs ← ArbitrarySizedSuchThat.arbitrarySizedST (fun es => SchemaToEnvironments (Schema.MkSchema ets acts) reqs es) fuel
+    match envs with
+    | v :: _ => do
+      let ty ← ArbitrarySizedSuchThat.arbitrarySizedST (fun t => WfCedarType ns t) fuel
+      let (expr, _) ← ArbitrarySizedSuchThat.arbitrarySizedST (fun e => HasType (.somepaths []) v e ty) fuel
+      return (ty, expr)
+    | _ => throw Gen.genericFailure
+
 #guard_msgs(drop info) in
 #eval Gen.printSamples (genCedarExpr 2)
 
 #guard_msgs(drop info) in
 #eval Gen.printSamples (genSchemaThenCedarExpr 3)
+
+#guard_msgs(drop info) in
+#eval Gen.printSamples (genWellFormedTypeAndExpr 3)

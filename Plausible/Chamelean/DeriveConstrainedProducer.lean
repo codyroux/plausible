@@ -546,7 +546,7 @@ def getScheduleForInductiveRelationConstructor
       let mut bestSchedule   := fstSchd
 
       trace[plausible.deriving.results] m!"First Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}\nSchedules Processed: {repr countProcessed}"
-
+      let limit := 200000
       for schdM in rest.get do
         let (schd, countSeen) ← schdM
         let score := scheduleStepsScore schd
@@ -555,7 +555,8 @@ def getScheduleForInductiveRelationConstructor
           bestSchedule := schd
           bestScore := score
           trace[plausible.deriving.results] m!"Better Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}\nSchedules Processed: {repr countProcessed}"
-
+        if countProcessed > limit then
+          break
 
       trace[plausible.deriving.results] m!"Chosen Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}\nSchedules Processed: {repr countProcessed}"
 
